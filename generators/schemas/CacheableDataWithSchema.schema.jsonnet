@@ -4,10 +4,13 @@
     id: {
       type: 'number',
     },
+    JsonSchema_id: {
+      type: 'number',
+    },
     CacheableInputData_id: {
       type: 'number',
     },
-    cachedDate: {
+    createdAt: {
       type: 'string',
     },
     sha256: {
@@ -23,7 +26,7 @@
   required: [
     'id',
     'CacheableInputData_id',
-    'cachedDate',
+    'createdAt',
     'sha256',
     'size',
     'content',

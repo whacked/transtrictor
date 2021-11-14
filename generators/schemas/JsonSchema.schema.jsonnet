@@ -4,27 +4,24 @@
     id: {
       type: 'number',
     },
-    owner_id: {
-      type: 'number',
-    },
-    sourcePath: {
-      type: 'string',
-    },
     createdAt: {
       type: 'string',
     },
     sha256: {
       type: 'string',
     },
-    size: {
-      type: 'number',
+    description: {
+      type: 'string',
+    },
+    content: {
+      type: 'string',
     },
   },
   required: [
     'id',
-    'sourcePath',
     'createdAt',
     'sha256',
-    'size',
+    'description',
+    'content',
   ],
 }

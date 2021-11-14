@@ -5,12 +5,11 @@
  * and run json-schema-to-typescript to regenerate this file.
  */
 
-export interface CacheableInputDataSchema {
+export interface JsonSchemaSchema {
+  content: string;
   createdAt: string;
+  description: string;
   id: number;
-  owner_id?: number;
   sha256: string;
-  size: number;
-  sourcePath: string;
   [k: string]: unknown;
 }

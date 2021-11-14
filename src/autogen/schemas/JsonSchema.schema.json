@@ -1,30 +1,27 @@
 {
    "properties": {
+      "content": {
+         "type": "string"
+      },
       "createdAt": {
+         "type": "string"
+      },
+      "description": {
          "type": "string"
       },
       "id": {
          "type": "number"
       },
-      "owner_id": {
-         "type": "number"
-      },
       "sha256": {
-         "type": "string"
-      },
-      "size": {
-         "type": "number"
-      },
-      "sourcePath": {
          "type": "string"
       }
    },
    "required": [
       "id",
-      "sourcePath",
       "createdAt",
       "sha256",
-      "size"
+      "description",
+      "content"
    ],
    "type": "object"
 }

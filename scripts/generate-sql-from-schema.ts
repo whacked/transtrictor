@@ -21,39 +21,46 @@ const knex = Knex({
 
 export async function jsonSchemaToTableCreator(jsonSchema: JSONSchema) {
     let propertyNames = Object.keys(jsonSchema.properties)
-    let createTableCommand = knex.schema.createTable(
-        jsonSchema.title ?? 'NoName',
-        (table) => {
+    let tableName = jsonSchema.title ?? 'NoName'
+    return knex.schema.hasTable(tableName).then((tableExists) => {
+        if (tableExists) {
+            return null
+        } else {
+            let createTableCommand = knex.schema.createTable(
+                tableName,
+                (table) => {
 
-            for (let i = 0; i < propertyNames.length; ++i) {
-                let propertyName = propertyNames[i]
+                    for (let i = 0; i < propertyNames.length; ++i) {
+                        let propertyName = propertyNames[i]
 
-                if (propertyName == 'id') {  // treat primary key
-                    table.increments(propertyName).primary()
-                } else if (propertyName.endsWith('_id')) {  // treat as join column
-                    table.integer(propertyName)
-                } else if (propertyName == 'sha256') {  // treat as unique
-                    table.string(propertyName).unique()
-                } else {
-                    let propDefinition = jsonSchema.properties[propertyName]
-                    switch (propDefinition['type']) {
-                        case 'number':
-                            table.float(propertyName)
-                            break
-                        case 'string':
-                            table.string(propertyName)
-                            break
-                        case 'boolean':
-                            table.boolean(propertyName)
-                            break
+                        if (propertyName == 'id') {  // treat primary key
+                            table.increments(propertyName).primary()
+                        } else if (propertyName.endsWith('_id')) {  // treat as join column
+                            table.integer(propertyName)
+                        } else if (propertyName == 'sha256') {  // treat as unique
+                            table.string(propertyName).unique()
+                        } else {
+                            let propDefinition = jsonSchema.properties[propertyName]
+                            switch (propDefinition['type']) {
+                                case 'number':
+                                    table.float(propertyName)
+                                    break
+                                case 'string':
+                                    table.string(propertyName)
+                                    break
+                                case 'boolean':
+                                    table.boolean(propertyName)
+                                    break
+                            }
+                        }
                     }
+                    return table
                 }
-            }
-            return table
+            )
+            console.debug(createTableCommand.toSQL())
+            return createTableCommand
         }
-    )
-    console.debug(createTableCommand.toSQL())
-    return createTableCommand
+    })
 }
 
 interface IForeignKey {
@@ -89,10 +96,13 @@ let processedTables: Record<string, any> = {}
 export async function generateTablesFromSchemas(jsonSchemas: Array<JSONSchema>) {
     let generators = jsonSchemas.map((schemaData) => {
         let createTableCommand = jsonSchemaToTableCreator(schemaData)
+        if (createTableCommand == null) {
+            return
+        }
         processedTables[schemaData.title] = createTableCommand
         foreignKeysToProcess = foreignKeysToProcess.concat(extractForeignKeys(schemaData))
         return createTableCommand
-    })
+    }).filter(x => x)
     return Promise.all(generators)
 }
 
@@ -129,4 +139,3 @@ generateTablesFromSchemas(jsonSchemas).then(async (_) => {
 }).then((_) => {
 
 })
-

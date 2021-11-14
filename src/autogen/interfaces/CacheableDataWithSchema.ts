@@ -5,10 +5,11 @@
  * and run json-schema-to-typescript to regenerate this file.
  */
 
-export interface CacheableOutputDataSchema {
+export interface CacheableDataWithSchemaSchema {
   CacheableInputData_id: number;
-  cachedDate: string;
+  JsonSchema_id?: number;
   content: string;
+  createdAt: string;
   id: number;
   sha256: string;
   size: number;

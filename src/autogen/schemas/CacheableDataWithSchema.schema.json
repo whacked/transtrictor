@@ -3,10 +3,13 @@
       "CacheableInputData_id": {
          "type": "number"
       },
-      "cachedDate": {
-         "type": "string"
+      "JsonSchema_id": {
+         "type": "number"
       },
       "content": {
+         "type": "string"
+      },
+      "createdAt": {
          "type": "string"
       },
       "id": {
@@ -22,7 +25,7 @@
    "required": [
       "id",
       "CacheableInputData_id",
-      "cachedDate",
+      "createdAt",
       "sha256",
       "size",
       "content"
