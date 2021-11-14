@@ -1,0 +1,7 @@
+{
+    "output": {
+        "original": $.input,
+        "someLargerNumber": $.input.someNumber * 7,
+        "hello": "goodbye"
+    }
+}

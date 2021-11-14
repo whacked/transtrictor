@@ -1,17 +1,22 @@
 import * as jsvg from './jsvg-lib'
-import { JS, MorphismTransformer } from './jsvg-lib'
+import { JS } from './jsvg-lib'
 import * as path from 'path'
-import * as fs from 'fs'
+import {
+    RawMorphismTransformer,
+    slurp,
+    unwrapTransformationContext,
+    wrapTransformationContext
+} from './transformer'
 
 const TEST_DATA_DIR = path.join(__dirname, 'testdata')
 
 
-function slurp(filePath: string) {
-    return fs.readFileSync(filePath, 'utf-8')
+function getTestFilePath(testFileName: string): string {
+    return path.join(TEST_DATA_DIR, testFileName)
 }
 
 function slurpTestData(testFileName: string) {
-    return slurp(path.join(TEST_DATA_DIR, testFileName))
+    return slurp(getTestFilePath(testFileName))
 }
 
 
@@ -48,7 +53,7 @@ test('end to end transformer (morphism)', async () => {
         bazqux: JS.typeString(),
     })
 
-    const transformationInput = jsvg.wrapTransformationContext({
+    const transformationInput = wrapTransformationContext({
         foo: 'baz',
         bar: ['bar', 'foo'],
         baz: {
@@ -56,7 +61,7 @@ test('end to end transformer (morphism)', async () => {
         }
     })
 
-    let transformer = new MorphismTransformer({
+    let transformer = new RawMorphismTransformer({
         output: {
             foo: 'input.bar[1]', // Grab the property value by his path
             bar: {
@@ -91,7 +96,7 @@ test('end to end transformer (morphism)', async () => {
         transformationInput,
         transformer,
     ).then((transformed) => {
-        let output = jsvg.unwrapTransformationContext(transformed)
+        let output = unwrapTransformationContext(transformed)
         expect(output).toMatchObject({
             foo: 'foo',
             bar: 'bar',
@@ -100,4 +105,27 @@ test('end to end transformer (morphism)', async () => {
     })
 
     return Promise.all([successCase, failureCase])
+})
+
+test('CLI post-transform schema validation', async () => {
+    return jsvg.cliMain({
+        schema: getTestFilePath('example-json-schema.jsonnet'),
+        input: getTestFilePath('example-json-input-good.jsonnet'),
+        transformer: getTestFilePath('sample-transformer.jsonata'),
+        postTransformSchema: getTestFilePath('example-post-transform-schema.jsonnet'),
+    }).then((result) => {
+        return expect(result).toMatchObject({
+            original: {
+                someNumber: 789,
+                tag: 'some tag',
+                tsconfig: {
+                    compilerOptions: {
+                        charset: 'utf-999',
+                    }
+                },
+            },
+            someLargerNumber: 5523,
+            hello: 'goodbye'
+        })
+    })
 })
