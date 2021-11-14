@@ -1,0 +1,31 @@
+{
+   "properties": {
+      "CacheableInputData_id": {
+         "type": "number"
+      },
+      "cachedDate": {
+         "type": "string"
+      },
+      "content": {
+         "type": "string"
+      },
+      "id": {
+         "type": "number"
+      },
+      "sha256": {
+         "type": "string"
+      },
+      "size": {
+         "type": "number"
+      }
+   },
+   "required": [
+      "id",
+      "CacheableInputData_id",
+      "cachedDate",
+      "sha256",
+      "size",
+      "content"
+   ],
+   "type": "object"
+}

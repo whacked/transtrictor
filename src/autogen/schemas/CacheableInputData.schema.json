@@ -1,0 +1,30 @@
+{
+   "properties": {
+      "cachedDate": {
+         "type": "string"
+      },
+      "id": {
+         "type": "number"
+      },
+      "owner_id": {
+         "type": "number"
+      },
+      "sha256": {
+         "type": "string"
+      },
+      "size": {
+         "type": "number"
+      },
+      "sourcePath": {
+         "type": "string"
+      }
+   },
+   "required": [
+      "id",
+      "sourcePath",
+      "cachedDate",
+      "sha256",
+      "size"
+   ],
+   "type": "object"
+}
