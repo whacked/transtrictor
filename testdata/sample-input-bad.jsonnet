@@ -1,0 +1,5 @@
+{
+  config: {
+    colors: ['violet', 'violation'],
+  },
+}
