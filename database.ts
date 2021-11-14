@@ -1,6 +1,8 @@
 import * as fs from 'fs'
 import * as KnexLib from 'knex'
+import * as col from 'colorette'
 import Knex from 'knex'
+import { JSONSchema } from '@apidevtools/json-schema-ref-parser'
 
 
 type SourceTableName = string;
@@ -141,5 +143,110 @@ export function hotPatchSchemaWithNullableFields(schemaObject: any, nullableFiel
                 currentFieldType, 'null',
             ]
         }
+    }
+}
+
+export async function jsonSchemaToTableCreator(knexInstance: KnexLib.Knex, jsonSchema: JSONSchema) {
+    let propertyNames = Object.keys(jsonSchema.properties)
+    let tableName = jsonSchema.title ?? 'NoName'
+    return knexInstance.schema.hasTable(tableName).then((tableExists) => {
+        if (tableExists) {
+            return null
+        } else {
+            let createTableCommand = knexInstance.schema.createTable(
+                tableName,
+                (table) => {
+
+                    for (let i = 0; i < propertyNames.length; ++i) {
+                        let propertyName = propertyNames[i]
+
+                        if (propertyName == 'id') {  // treat primary key
+                            table.increments(propertyName).primary()
+                        } else if (propertyName.endsWith('_id')) {  // treat as join column
+                            table.integer(propertyName)
+                        } else if (propertyName == 'sha256') {  // treat as unique
+                            table.string(propertyName, 32).unique()
+                        } else {
+                            let propDefinition = jsonSchema.properties[propertyName]
+                            switch (propDefinition['type']) {
+                                case 'number':
+                                    table.float(propertyName)
+                                    break
+                                case 'string':
+                                    table.text(propertyName)
+                                    break
+                                case 'boolean':
+                                    table.boolean(propertyName)
+                                    break
+                            }
+                        }
+                    }
+                    return table
+                }
+            )
+            console.debug(createTableCommand.toSQL())
+            return createTableCommand
+        }
+    })
+}
+
+export interface IForeignKey {
+    foreignTableName: string,
+    foreignKey: string,
+    localTableName: string,
+    localKey: string,
+}
+
+export function extractForeignKeys(jsonSchema: JSONSchema): Array<IForeignKey> {
+    return Object.keys(jsonSchema.properties).filter((key) => {
+        return key.endsWith('_id')
+    }).map((key) => {
+        let matches = key.match(/(.+?)_(id)$/)
+        let fKeySpec: IForeignKey = {
+            foreignTableName: matches[1],
+            foreignKey: matches[2],
+            localTableName: jsonSchema.title,
+            localKey: key,
+        }
+        return fKeySpec
+    })
+}
+
+export async function generateTablesFromSchemas(knexInstance: KnexLib.Knex, jsonSchemas: Array<JSONSchema>) {
+    let foreignKeysToProcess: Array<IForeignKey> = []
+    let processedTables: Record<string, any> = {}
+    let generators = jsonSchemas.map((schemaData) => {
+        let createTableCommand = jsonSchemaToTableCreator(knexInstance, schemaData)
+        if (createTableCommand == null) {
+            return
+        }
+        processedTables[schemaData.title] = createTableCommand
+        foreignKeysToProcess = foreignKeysToProcess.concat(extractForeignKeys(schemaData))
+        return createTableCommand
+    }).filter(x => x)
+
+    let tableResults = await Promise.all(generators)
+
+    let foreignKeyCommands = []
+    for (const foreignKey of foreignKeysToProcess) {
+        if (processedTables[foreignKey.foreignTableName] == null) {
+            console.warn(col.magenta(`skipping table with no schema: ${foreignKey.foreignTableName}`))
+            continue
+        }
+        let foreignKeyConstraintCommand = knexInstance.schema.alterTable(foreignKey.localTableName, (table) => {
+            table.foreign(foreignKey.localKey).references(`${foreignKey.foreignTableName}.${foreignKey.foreignKey}`)
+        })
+
+        console.info(foreignKey)
+        console.debug(foreignKeyConstraintCommand.toSQL())
+
+        foreignKeyCommands.push(foreignKeyConstraintCommand)
+    }
+
+    let foreignKeyResults = await Promise.all(foreignKeyCommands)
+
+    return {
+        tableResults,
+        foreignKeyResults,
     }
 }
