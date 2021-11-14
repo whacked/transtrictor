@@ -8,6 +8,7 @@ import Ajv from 'ajv'
 import { ErrorObject } from 'ajv'
 import { morphism } from 'morphism'
 import * as jc from 'json-cycle'
+import * as GenerateSchema from 'generate-schema'
 import {
     Transformer,
     IWrappedDataContext,
@@ -142,8 +143,8 @@ export class JS {
 
 
 export interface IYarguments {
-    schema: string,
     input: string,
+    schema?: string,
     transformer?: string,
     postTransformSchema?: string,
 }
@@ -217,13 +218,26 @@ export async function cliMain(args: IYarguments): Promise<any> {
 
 if (require.main == module) {
     const args = argParser.parseSync()
-    if (args.schema == null || args.input == null) {
+    if (args.input == null) {
         argParser.showHelp()
         process.exit()
     }
 
-    cliMain(args).then((resultData) => {
-        console.log(JSON.stringify(resultData, null, 2))
-        process.exit(0)
-    })
+    if (args.schema == null) {
+        let inputJsonnetSource = slurp(args.input)
+        renderJsonnet(inputJsonnetSource).then((renderedData) => {
+            let schema = GenerateSchema.json(
+                'GeneratedSchema',
+                renderedData,
+            )
+            console.log(JSON.stringify(schema, null, 2))
+            process.exit(0)
+        })
+    } else {
+
+        cliMain(args).then((resultData) => {
+            console.log(JSON.stringify(resultData, null, 2))
+            process.exit(0)
+        })
+    }
 }
