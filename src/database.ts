@@ -3,6 +3,8 @@ import * as KnexLib from 'knex'
 import * as col from 'colorette'
 import Knex from 'knex'
 import { JSONSchema } from '@apidevtools/json-schema-ref-parser'
+import memoizerific from 'memoizerific'
+import crypto from 'crypto'
 
 
 type SourceTableName = string;
