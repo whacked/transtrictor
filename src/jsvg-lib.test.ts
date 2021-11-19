@@ -7,6 +7,9 @@ import {
     unwrapTransformationContext,
     wrapTransformationContext
 } from './transformer'
+import {
+    cliMain
+} from '../scripts/cli'
 
 const TEST_DATA_DIR = path.join(__dirname, 'testdata')
 
@@ -108,7 +111,7 @@ test('end to end transformer (morphism)', async () => {
 })
 
 test('CLI post-transform schema validation', async () => {
-    return jsvg.cliMain({
+    return cliMain({
         schema: getTestFilePath('example-json-schema.jsonnet'),
         input: getTestFilePath('example-json-input-good.jsonnet'),
         transformer: getTestFilePath('sample-transformer.jsonata'),

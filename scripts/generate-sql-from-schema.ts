@@ -4,7 +4,7 @@ import * as col from 'colorette'
 import * as fs from 'fs'
 import Knex from 'knex'
 import * as path from 'path'
-import { generateTablesFromSchemas } from '../database'
+import { generateTablesFromSchemas } from '../src/database'
 import { slurp } from '../src/transformer'
 
 
