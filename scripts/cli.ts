@@ -1,3 +1,4 @@
+import * as fs from 'fs'
 import * as GenerateSchema from 'generate-schema';
 import { hideBin } from 'yargs/helpers';
 import yargs from 'yargs/yargs';
@@ -5,10 +6,12 @@ import { renderJsonnet, validateDataWithSchema, validateJsonnetWithSchema, Valid
 import {
     loadTransformerFile, slurp, unwrapTransformationContext, wrapTransformationContext
 } from '../src/transformer';
+import * as readline from 'readline'
 
 
 export interface IYarguments {
     input: string,
+    jsonLines: string,
     schema?: string,
     transformer?: string,
     postTransformSchema?: string,
@@ -23,7 +26,14 @@ const argParser = yargs(hideBin(process.argv)).options({
     input: {
         alias: 'i',
         type: 'string',
-        description: 'path to input json(net) file to validate against schema',
+        description: 'path to input json(net) file, or "-" for STDIN, to validate against schema',
+        nargs: 1,
+    },
+    jsonLines: {
+        alias: 'j',
+        type: 'string',
+        description: 'path to JSONL generator json(net) file, or "-" for STDIN, to validate against schema',
+        nargs: 1,
     },
     transformer: {
         alias: 't',
@@ -40,7 +50,7 @@ const argParser = yargs(hideBin(process.argv)).options({
 
 export async function cliMain(args: IYarguments): Promise<any> {
     const schemaJsonnetSource = slurp(args.schema)
-    const targetDataJsonnetSource = slurp(args.input)
+
     const postTransformSchemaJsonnetSource = args.postTransformSchema == null ? null : slurp(args.postTransformSchema)
 
     let runTransform: (input: any) => Promise<any>;
@@ -72,18 +82,72 @@ export async function cliMain(args: IYarguments): Promise<any> {
         }
     }
 
-    return validateJsonnetWithSchema(targetDataJsonnetSource, schemaJsonnetSource).then((result: ValidationResult) => {
-        if (!result.isValid) {
-            console.error('OUTPUT VALIDATION ERROR', result.errors)
-            return process.exit(1)
+    async function processJsonnetStringTransformation(targetDataJsonnetSource: string) {
+        return validateJsonnetWithSchema(
+            targetDataJsonnetSource,
+            schemaJsonnetSource
+        ).then(
+            async (result: ValidationResult) => {
+                if (!result.isValid) {
+                    console.error('OUTPUT VALIDATION ERROR', result.errors)
+                    return process.exit(1)
+                }
+                const resultData = await runTransform(result.data);
+                console.log(JSON.stringify(resultData, null, 2));
+                return resultData
+            })
+    }
+
+
+    if (args.input != null) {
+        if (args.input == '-') {
+            process.stdin.resume();
+            process.stdin.setEncoding('utf-8');
+            let readBuffer: string = ''
+            return new Promise((resolve, reject) => {
+                process.stdin.on('data', inputData => {
+                    readBuffer += inputData
+                })
+                process.stdin.on('end', _ => {
+                    resolve(readBuffer)
+                })
+            }).then((targetDataJsonnetSource) => {
+                return processJsonnetStringTransformation(targetDataJsonnetSource as string)
+            })
+        } else {
+            return Promise.resolve(
+                processJsonnetStringTransformation(slurp(args.input)))
         }
-        return runTransform(result.data)
-    })
+    } else if (args.jsonLines != null) {
+        let lineReader: readline.Interface
+        let interfaceOptions = {
+            output: process.stdout,
+            terminal: false,
+        }
+        if (args.jsonLines == '-') {
+            lineReader = readline.createInterface({
+                ...interfaceOptions,
+                input: process.stdin,
+            })
+        } else {
+            lineReader = readline.createInterface({
+                ...interfaceOptions,
+                input: fs.createReadStream(args.jsonLines),
+            })
+        }
+        return new Promise((resolve, reject) => {
+            lineReader.on('line', async (line) => {
+                processJsonnetStringTransformation(line)
+            })
+        })
+    }
 }
 
 if (require.main == module) {
     const args = argParser.parseSync()
-    if (args.input == null) {
+    if (args.input == null && args.jsonLines == null
+        || args.input != null && args.jsonLines != null
+    ) {
         argParser.showHelp()
         process.exit()
     }
@@ -100,8 +164,7 @@ if (require.main == module) {
         })
     } else {
 
-        cliMain(args).then((resultData) => {
-            console.log(JSON.stringify(resultData, null, 2))
+        cliMain(args).finally(() => {
             process.exit(0)
         })
     }
