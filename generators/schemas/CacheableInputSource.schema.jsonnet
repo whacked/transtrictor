@@ -1,5 +1,6 @@
 {
   type: 'object',
+  description: 'metadata for input data source -- not the actual data content',
   properties: {
     id: {
       type: 'number',

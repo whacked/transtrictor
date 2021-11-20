@@ -1,5 +1,6 @@
 {
   type: 'object',
+  description: 'copy of actual data content taken from a given location, specified by CacheableInputSource',
   properties: {
     id: {
       type: 'number',
@@ -7,7 +8,7 @@
     JsonSchemaRecord_id: {
       type: 'number',
     },
-    CacheableInputData_id: {
+    CacheableInputSource_id: {
       type: 'number',
     },
     createdAt: {
@@ -25,7 +26,7 @@
   },
   required: [
     'id',
-    'CacheableInputData_id',
+    'CacheableInputSource_id',
     'createdAt',
     'sha256',
     'size',
