@@ -116,6 +116,7 @@ test('CLI post-transform schema validation', async () => {
         input: getTestFilePath('example-json-input-good.jsonnet'),
         transformer: getTestFilePath('sample-transformer.jsonata'),
         postTransformSchema: getTestFilePath('example-post-transform-schema.jsonnet'),
+        jsonLines: null,
     }).then((result) => {
         return expect(result).toMatchObject({
             original: {
