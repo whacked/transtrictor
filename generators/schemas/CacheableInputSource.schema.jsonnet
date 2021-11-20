@@ -3,10 +3,10 @@
   description: 'metadata for input data source -- not the actual data content',
   properties: {
     id: {
-      type: 'number',
+      type: 'integer',
     },
     owner_id: {
-      type: 'number',
+      type: 'integer',
     },
     sourcePath: {
       type: 'string',
@@ -18,7 +18,7 @@
       type: 'string',
     },
     size: {
-      type: 'number',
+      type: 'integer',
     },
   },
   required: [

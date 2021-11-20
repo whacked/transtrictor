@@ -4,20 +4,11 @@ import * as col from 'colorette'
 import * as fs from 'fs'
 import Knex from 'knex'
 import * as path from 'path'
-import { generateTablesFromSchemas } from '../src/database'
+import { generateTablesFromSchemas, loadEnvDefinedDatabase } from '../src/database'
 import { slurp } from '../src/transformer'
 
 
-let SQLITE_DATABASE: string = process.env.DATABASE_NAME ?? ':memory:'
-console.info(`using database: ${col.yellow(SQLITE_DATABASE)}`)
-
-const knex = Knex({
-    client: 'sqlite3',
-    connection: {
-        filename: SQLITE_DATABASE,
-    },
-})
-
+const knex = loadEnvDefinedDatabase()
 
 const AUTOGEN_SCHEMAS_DIRECTORY = path.join(__dirname, '..', 'src/autogen/schemas')
 

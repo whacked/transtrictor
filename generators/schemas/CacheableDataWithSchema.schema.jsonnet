@@ -3,13 +3,13 @@
   description: 'copy of actual data content taken from a given location, specified by CacheableInputSource',
   properties: {
     id: {
-      type: 'number',
+      type: 'integer',
     },
     JsonSchemaRecordSchema_id: {
-      type: 'number',
+      type: 'integer',
     },
     CacheableInputSource_id: {
-      type: 'number',
+      type: 'integer',
     },
     createdAt: {
       type: 'string',
@@ -18,7 +18,7 @@
       type: 'string',
     },
     size: {
-      type: 'number',
+      type: 'integer',
     },
     content: {
       type: 'string',

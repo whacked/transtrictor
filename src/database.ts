@@ -6,7 +6,24 @@ import { JSONSchema } from '@apidevtools/json-schema-ref-parser'
 import memoizerific from 'memoizerific'
 import crypto from 'crypto'
 import DatabaseJoinSpec from './autogen/databaseJoinSpec.json'
+import { CacheableInputSourceSchema } from './autogen/interfaces/CacheableInputSource'
+import { CacheableDataWithSchemaSchema } from './autogen/interfaces/CacheableDataWithSchema'
+import { JsonSchemaRecordSchema } from './autogen/interfaces/JsonSchemaRecord'
+import { canonicalize } from 'json-canonicalize'
+import CacheableInputSource from './autogen/schemas/CacheableInputSource.schema.json'
+import CacheableDataWithSchema from './autogen/schemas/CacheableDataWithSchema.schema.json'
+import JsonSchemaRecord from './autogen/schemas/JsonSchemaRecord.schema.json'
+import { slurp } from './transformer'
 
+
+
+interface DefaultTables {
+    CacheableInputSource: CacheableInputSourceSchema,
+    CacheableDataWithSchema: CacheableDataWithSchemaSchema,
+    JsonSchemaRecord: JsonSchemaRecordSchema,
+}
+
+type DefaultTableNames = keyof DefaultTables
 
 type SourceTableName = string;
 type TargetTableName = string;
@@ -149,7 +166,10 @@ export function hotPatchSchemaWithNullableFields(schemaObject: any, nullableFiel
     }
 }
 
-export async function jsonSchemaToTableCreator(knexInstance: KnexLib.Knex, jsonSchema: JSONSchema) {
+export async function jsonSchemaToTableCreator(
+    knexInstance: KnexLib.Knex,
+    jsonSchema: JSONSchema,
+): Promise<KnexLib.Knex.SchemaBuilder> {
     let propertyNames = Object.keys(jsonSchema.properties)
     let tableName = jsonSchema.title ?? 'NoName'
     return knexInstance.schema.hasTable(tableName).then((tableExists) => {
@@ -172,6 +192,9 @@ export async function jsonSchemaToTableCreator(knexInstance: KnexLib.Knex, jsonS
                         } else {
                             let propDefinition = jsonSchema.properties[propertyName]
                             switch (propDefinition['type']) {
+                                case 'integer':
+                                    table.integer(propertyName)
+                                    break
                                 case 'number':
                                     table.float(propertyName)
                                     break
@@ -187,6 +210,7 @@ export async function jsonSchemaToTableCreator(knexInstance: KnexLib.Knex, jsonS
                     return table
                 }
             )
+            console.debug(`- create table command for ${tableName}`)
             console.debug(createTableCommand.toSQL())
             return createTableCommand
         }
@@ -218,17 +242,15 @@ export function extractForeignKeys(jsonSchema: JSONSchema): Array<IForeignKey> {
 export async function generateTablesFromSchemas(knexInstance: KnexLib.Knex, jsonSchemas: Array<JSONSchema>) {
     let foreignKeysToProcess: Array<IForeignKey> = []
     let processedTables: Record<string, any> = {}
-    let generators = jsonSchemas.map((schemaData) => {
-        let createTableCommand = jsonSchemaToTableCreator(knexInstance, schemaData)
+
+    for (const schemaData of jsonSchemas) {
+        let createTableCommand = await jsonSchemaToTableCreator(knexInstance, schemaData)
         if (createTableCommand == null) {
-            return
+            continue
         }
         processedTables[schemaData.title] = createTableCommand
         foreignKeysToProcess = foreignKeysToProcess.concat(extractForeignKeys(schemaData))
-        return createTableCommand
-    }).filter(x => x)
-
-    let tableResults = await Promise.all(generators)
+    }
 
     let foreignKeyCommands = []
     for (const foreignKey of foreignKeysToProcess) {
@@ -240,6 +262,7 @@ export async function generateTablesFromSchemas(knexInstance: KnexLib.Knex, json
             table.foreign(foreignKey.localKey).references(`${foreignKey.foreignTableName}.${foreignKey.foreignKey}`)
         })
 
+        console.log(`- foreign key joining ${foreignKey.localTableName}.${foreignKey.localKey} --> ${foreignKey.foreignTableName}.${foreignKey.foreignKey}:`)
         console.info(foreignKey)
         console.debug(foreignKeyConstraintCommand.toSQL())
 
@@ -249,7 +272,7 @@ export async function generateTablesFromSchemas(knexInstance: KnexLib.Knex, json
     let foreignKeyResults = await Promise.all(foreignKeyCommands)
 
     return {
-        tableResults,
+        processedTables,
         foreignKeyResults,
     }
 }

@@ -2,10 +2,10 @@
    "description": "copy of actual data content taken from a given location, specified by CacheableInputSource",
    "properties": {
       "CacheableInputSource_id": {
-         "type": "number"
+         "type": "integer"
       },
       "JsonSchemaRecordSchema_id": {
-         "type": "number"
+         "type": "integer"
       },
       "content": {
          "type": "string"
@@ -14,13 +14,13 @@
          "type": "string"
       },
       "id": {
-         "type": "number"
+         "type": "integer"
       },
       "sha256": {
          "type": "string"
       },
       "size": {
-         "type": "number"
+         "type": "integer"
       }
    },
    "required": [
