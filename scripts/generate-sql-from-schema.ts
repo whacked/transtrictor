@@ -33,5 +33,5 @@ let jsonSchemas = fs.readdirSync(AUTOGEN_SCHEMAS_DIRECTORY).map((schemaFileName)
 })
 
 generateTablesFromSchemas(knex, jsonSchemas).finally(() => {
-    console.log('ok')
+    knex.destroy()
 })

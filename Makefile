@@ -10,7 +10,7 @@ $(info $$JSON_SCHEMAS_FILES is [${JSON_SCHEMAS_FILES}])
 $(info $$TS_INTERFACES_FILES is [${TS_INTERFACES_FILES}])
 
 
-autogens: json-schemas ts-interfaces
+autogens: json-schemas ts-interfaces src/autogen/databaseJoinSpec.json
 
 json-schemas: $(JSON_SCHEMAS_FILES)
 
@@ -22,3 +22,5 @@ $(JSON_SCHEMAS_DIRECTORY)/%.json: $(JSONNET_SCHEMAS_DIRECTORY)/%.jsonnet
 $(TS_INTERFACES_DIRECTORY)/%.ts: $(JSON_SCHEMAS_DIRECTORY)/%.schema.json
 	json2ts $< | tee $@
 
+src/autogen/databaseJoinSpec.json: generators/databaseJoinSpec.jsonnet
+	jsonnet $< | tee $@
