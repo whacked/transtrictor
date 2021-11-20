@@ -5,7 +5,10 @@
  * and run json-schema-to-typescript to regenerate this file.
  */
 
-export interface CacheableInputDataSchema {
+/**
+ * metadata for input data source -- not the actual data content
+ */
+export interface CacheableInputSourceSchema {
   createdAt: string;
   id: number;
   owner_id?: number;

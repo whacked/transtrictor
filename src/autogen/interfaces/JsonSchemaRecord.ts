@@ -5,6 +5,9 @@
  * and run json-schema-to-typescript to regenerate this file.
  */
 
+/**
+ * json schema referenced by data in CacheableDataWithSchema
+ */
 export interface JsonSchemaRecordSchema {
   content: string;
   createdAt: string;

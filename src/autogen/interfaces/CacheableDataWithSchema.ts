@@ -5,8 +5,11 @@
  * and run json-schema-to-typescript to regenerate this file.
  */
 
+/**
+ * copy of actual data content taken from a given location, specified by CacheableInputSource
+ */
 export interface CacheableDataWithSchemaSchema {
-  CacheableInputData_id: number;
+  CacheableInputSource_id: number;
   JsonSchemaRecord_id?: number;
   content: string;
   createdAt: string;
