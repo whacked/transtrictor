@@ -1,5 +1,5 @@
 {
-   "CacheableDataWithSchema": {
+   "CacheableDataResult": {
       "CacheableInputSource": [
          "CacheableInputSource_id",
          "id"

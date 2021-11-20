@@ -6,7 +6,7 @@
  */
 
 /**
- * json schema referenced by data in CacheableDataWithSchema
+ * json schema referenced by data in CacheableDataResult
  */
 export interface JsonSchemaRecordSchema {
   content: string;
