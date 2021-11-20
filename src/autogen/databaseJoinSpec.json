@@ -4,8 +4,8 @@
          "CacheableInputSource_id",
          "id"
       ],
-      "JsonSchemaRecord": [
-         "JsonSchemaRecord_id",
+      "JsonSchemaRecordSchema": [
+         "JsonSchemaRecordSchema_id",
          "id"
       ]
    }
