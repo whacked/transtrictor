@@ -4,7 +4,7 @@
     id: {
       type: 'number',
     },
-    JsonSchema_id: {
+    JsonSchemaRecord_id: {
       type: 'number',
     },
     CacheableInputData_id: {
