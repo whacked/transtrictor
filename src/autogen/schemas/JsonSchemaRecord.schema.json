@@ -11,7 +11,7 @@
          "type": "string"
       },
       "id": {
-         "type": "number"
+         "type": "integer"
       },
       "sha256": {
          "type": "string"

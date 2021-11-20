@@ -5,16 +5,16 @@
          "type": "string"
       },
       "id": {
-         "type": "number"
+         "type": "integer"
       },
       "owner_id": {
-         "type": "number"
+         "type": "integer"
       },
       "sha256": {
          "type": "string"
       },
       "size": {
-         "type": "number"
+         "type": "integer"
       },
       "sourcePath": {
          "type": "string"
