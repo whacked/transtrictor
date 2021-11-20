@@ -7,7 +7,7 @@
 
 export interface CacheableDataWithSchemaSchema {
   CacheableInputData_id: number;
-  JsonSchema_id?: number;
+  JsonSchemaRecord_id?: number;
   content: string;
   createdAt: string;
   id: number;
