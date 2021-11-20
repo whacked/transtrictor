@@ -1,6 +1,6 @@
 {
   type: 'object',
-  description: 'json schema referenced by data in CacheableDataWithSchema',
+  description: 'json schema referenced by data in CacheableDataResult',
   properties: {
     id: {
       type: 'integer',

@@ -1,10 +1,20 @@
 {
    "description": "copy of actual data content taken from a given location, specified by CacheableInputSource",
    "properties": {
+      "CacheableDataResult_id": {
+         "description": "(self join) parent data object containing source data, if applicable",
+         "type": "integer"
+      },
       "CacheableInputSource_id": {
+         "description": "parent data source by metadata, if applicable",
          "type": "integer"
       },
       "JsonSchemaRecordSchema_id": {
+         "description": "describing/validating schema, if applicable",
+         "type": "integer"
+      },
+      "TransformerData_id": {
+         "description": "(self join) parent data object containing transformer data that joins to metadata, if applicable",
          "type": "integer"
       },
       "content": {
