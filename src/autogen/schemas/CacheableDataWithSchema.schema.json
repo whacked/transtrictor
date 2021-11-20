@@ -4,7 +4,7 @@
       "CacheableInputSource_id": {
          "type": "number"
       },
-      "JsonSchemaRecord_id": {
+      "JsonSchemaRecordSchema_id": {
          "type": "number"
       },
       "content": {
