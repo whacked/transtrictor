@@ -1,0 +1,12 @@
+{
+   "CacheableDataWithSchema": {
+      "CacheableInputData": [
+         "CacheableInputData_id",
+         "id"
+      ],
+      "JsonSchemaRecord": [
+         "JsonSchemaRecord_id",
+         "id"
+      ]
+   }
+}

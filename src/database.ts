@@ -5,6 +5,7 @@ import Knex from 'knex'
 import { JSONSchema } from '@apidevtools/json-schema-ref-parser'
 import memoizerific from 'memoizerific'
 import crypto from 'crypto'
+import DatabaseJoinSpec from './autogen/databaseJoinSpec.json'
 
 
 type SourceTableName = string;
