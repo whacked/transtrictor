@@ -15,13 +15,15 @@ import CacheableInputSource from './autogen/schemas/CacheableInputSource.schema.
 import CacheableDataResult from './autogen/schemas/CacheableDataResult.schema.json'
 import JsonSchemaRecord from './autogen/schemas/JsonSchemaRecord.schema.json'
 import { slurp } from './transformer'
+import { unflatten } from 'flat'
+import { validateDataWithSchema } from './jsvg-lib'
 
 
 const AUTOGEN_SCHEMAS_DIRECTORY = path.join(path.dirname(__filename), 'autogen/schemas')
 
 export interface DefaultTables {
     CacheableInputSource: CacheableInputSourceSchema,
-    CacheableDataWithSchema: CacheableDataResultSchema,
+    CacheableDataResult: CacheableDataResultSchema,
     JsonSchemaRecord: JsonSchemaRecordSchema,
 }
 
@@ -149,7 +151,8 @@ export class KnexSqliteQueryable extends KnexQueryable {
             client: 'sqlite3',
             connection: {
                 filename: failIfNotExists(filename),
-            }
+            },
+            useNullAsDefault: true,  // fixes TypeError: `sqlite` does not support inserting default values. Specify values explicitly or use the `useNullAsDefault` config flag.
         }, joinSpec)
     }
 }
@@ -266,7 +269,7 @@ export async function generateTablesFromSchemas(knexInstance: KnexLib.Knex, json
             table.foreign(foreignKey.localKey).references(`${foreignKey.foreignTableName}.${foreignKey.foreignKey}`)
         })
 
-        console.log(`- foreign key joining ${foreignKey.localTableName}.${foreignKey.localKey} --> ${foreignKey.foreignTableName}.${foreignKey.foreignKey}:`)
+        console.debug(`- foreign key joining ${foreignKey.localTableName}.${foreignKey.localKey} --> ${foreignKey.foreignTableName}.${foreignKey.foreignKey}:`)
         console.info(foreignKey)
         console.debug(foreignKeyConstraintCommand.toSQL())
 
@@ -326,6 +329,7 @@ export function loadEnvDefinedDatabase(databaseName?: string): KnexLib.Knex {
         connection: {
             filename: databaseName,
         },
+        useNullAsDefault: true,  // fixes TypeError: `sqlite` does not support inserting default values. Specify values explicitly or use the `useNullAsDefault` config flag.
     })
 }
 
@@ -347,7 +351,7 @@ export async function ensureHashableObjectInDatabase(
     insertableObject: Partial<CacheableInputSourceSchema>
         | Partial<CacheableDataResultSchema>
         | Partial<JsonSchemaRecordSchema>,
-): Promise<string> {
+): Promise<QueryStatus> {
     let sha256 = KnexDbInterface.getObjectHash(hashableObject)
     const selectResult = await knexDbi.knexQueryable.expandQuery(
         {
@@ -359,14 +363,20 @@ export async function ensureHashableObjectInDatabase(
         `${tableName}.sha256`, '=', sha256
     )
     if (selectResult.length > 0) {
-        return Promise.resolve(sha256)
+        return Promise.resolve({
+            operation: null,
+            sha256,
+        })
     } else {
         let insertable = {
             ...insertableObject,
             sha256,
         }
         return knexDbi.knexQueryable.knex(tableName).insert(insertable).then((insertResult) => {
-            return sha256
+            return {
+                sha256,
+                operation: QueryOperationType.INSERT,
+            }
         })
     }
 }
@@ -375,17 +385,30 @@ function sqliteDateTimeNow(): string {
     return new Date().toISOString().replace('T', ' ').replace('Z', '')
 }
 
+export enum QueryOperationType {
+    INSERT = 'INSERT',
+    UPSERT = 'UPSERT',
+}
+
+export interface QueryStatus {
+    operation: QueryOperationType | null,
+    sha256: string,
+    replacedSha256?: string,
+}
+
+export function vanillaFilesystemLoader(inputSourcePath: string): Promise<string> {
+    return Promise.resolve(slurp(inputSourcePath))
+}
+
 export async function upsertFileSystemInputSourceInDatabase(
     knexDbi: KnexDbInterface,
     inputSourcePath: string,
-    inputSourceLoader?: (inputSourcePath: string) => Promise<string>,
-) {
+    inputSourceLoader: (inputSourcePath: string) => Promise<string>,
+): Promise<QueryStatus> {
     const tableName: DefaultTableNames = 'CacheableInputSource'
 
     if (inputSourceLoader == null) {
-        inputSourceLoader = (inputSourcePath: string): Promise<string> => {
-            return Promise.resolve(slurp(inputSourcePath))
-        }
+        inputSourceLoader = vanillaFilesystemLoader
     }
 
     return inputSourceLoader(inputSourcePath).then((inputSourceContent) => {
@@ -397,18 +420,31 @@ export async function upsertFileSystemInputSourceInDatabase(
             {
                 [tableName]: [
                     'id',
+                    'sha256',
                 ]
             }
-        ).where(whereClause).then((selectResult) => {
-            if (selectResult.length > 0) {
-                let updateable: Partial<CacheableInputSourceSchema> = {
-                    updatedAt: sqliteDateTimeNow(),
-                    sha256: sha256,
-                    size: inputSourceContent.length,
+        ).where(whereClause).first().then((selectResult): Promise<QueryStatus> => {
+            if (selectResult != null) {
+                if (selectResult[`${tableName}.sha256`] == sha256) {
+                    // exists and is identical
+                    return Promise.resolve({
+                        sha256,
+                        operation: null,
+                    })
+                } else {
+                    let updateable: Partial<CacheableInputSourceSchema> = {
+                        updatedAt: sqliteDateTimeNow(),
+                        sha256: sha256,
+                        size: inputSourceContent.length,
+                    }
+                    return knexDbi.knexQueryable.knex(tableName).update(updateable).where(whereClause).then((updatedResult) => {
+                        return {
+                            sha256,
+                            operation: QueryOperationType.UPSERT,
+                            replacedSha256: selectResult[`${tableName}.sha256`],
+                        }
+                    })
                 }
-                return knexDbi.knexQueryable.knex(tableName).update(updateable).where(whereClause).then((updatedResult) => {
-                    return sha256
-                })
             } else {
                 let insertable: Partial<CacheableInputSourceSchema> = {
                     updatedAt: sqliteDateTimeNow(),
@@ -417,26 +453,100 @@ export async function upsertFileSystemInputSourceInDatabase(
                     sourcePath: inputSourcePath,
                 }
                 return knexDbi.knexQueryable.knex(tableName).insert(insertable).then((insertResult) => {
-                    return sha256
+                    return {
+                        sha256,
+                        operation: QueryOperationType.INSERT,
+                    }
                 })
             }
         })
     })
 }
 
-export function ensureJsonSchemaInDatabase(
+export async function ensureJsonSchemaInDatabase(
     knexDbi: KnexDbInterface,
     jsonSchemaObject: JSONSchema
-) {
+): Promise<JsonSchemaRecordSchema> {
+    let tableName: DefaultTableNames = 'JsonSchemaRecord'
     return ensureHashableObjectInDatabase(
         knexDbi,
-        'JsonSchemaRecord',
+        tableName,
         jsonSchemaObject,
         // this must be fully specified except for `id`
         {
             content: canonicalize(jsonSchemaObject),
             createdAt: sqliteDateTimeNow(),
-            description: jsonSchemaObject.description ?? '',
+            description: jsonSchemaObject.description,
         }
+    ).then(async (queryResult) => {
+        let existingEntry = await knexDbi.knexQueryable.expandQuery(
+            {
+                [tableName]: Object.keys(JsonSchemaRecord.properties)
+            }
+        ).where(
+            `${tableName}.sha256`, '=', queryResult.sha256
+        ).first()
+        let unflattened = unflatten(existingEntry)
+        return unflattened[tableName] as JsonSchemaRecordSchema
+    })
+}
+
+export async function runDataImportProcessForInputSource(
+    knexDbi: KnexDbInterface,
+    inputSourcePath: string,
+    inputSourceLoader: (inputSourcePath: string) => Promise<string>,
+    importerProcess: (inputSourceContent: string) => Promise<Array<string>>,
+    importValidatorSchema: JSONSchema,
+): Promise<number> {
+    const inputSourceTableName: DefaultTableNames = 'CacheableInputSource'
+    let inputSourceQueryStatus = await upsertFileSystemInputSourceInDatabase(
+        knexDbi,
+        inputSourcePath,
+        inputSourceLoader,
     )
+
+    if (inputSourceQueryStatus.operation == QueryOperationType.UPSERT
+        && inputSourceQueryStatus.replacedSha256 == null
+    ) {
+        console.debug('up to date')
+        return 0
+    }
+
+    let jsonSchemaEntry = await ensureJsonSchemaInDatabase(knexDbi, importValidatorSchema)
+    return inputSourceLoader(inputSourcePath).then((sourceContent) => {
+        return importerProcess(sourceContent)
+    }).then(async (contentIterable: Array<string>) => {
+        let inserts = contentIterable.map(async (content) => {
+            let jsonableDataObject = JSON.parse(content)
+            let validatedResult = await validateDataWithSchema(
+                jsonableDataObject,
+                importValidatorSchema,
+            )
+            if (!validatedResult.isValid) {
+                console.warn(validatedResult.errors)
+                throw new Error(`vailed to validate input data: ${content}`)
+            }
+            let canonicalizedJson = canonicalize(jsonableDataObject)
+            return ensureHashableObjectInDatabase(
+                knexDbi,
+                'CacheableDataResult',
+                jsonableDataObject,
+                {
+                    CacheableDataResult_id: null,  // no parent
+                    CacheableInputSource_id: inputSourceQueryStatus[`${inputSourceTableName}.id`],
+                    JsonSchemaRecordSchema_id: jsonSchemaEntry.id,
+                    TransformerData_id: null,  // no transformer (= initial import)
+                    content: canonicalizedJson,
+                    createdAt: sqliteDateTimeNow(),
+                    sha256: getSha256(canonicalizedJson),
+                    size: canonicalizedJson.length,
+                } as Omit<CacheableDataResultSchema, 'id'>
+            )
+        })
+        return Promise.all(inserts).then((results) => {
+            return results.filter(qr => {
+                return qr.operation != null
+            }).length
+        })
+    })
 }
