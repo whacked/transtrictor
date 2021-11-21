@@ -7,17 +7,6 @@ import fs from 'fs'
 import { last } from 'lodash';
 import { morphism } from 'morphism'
 
-
-export function slurp(filePath: string): string {
-    return fs.readFileSync(filePath, 'utf-8')
-}
-
-
-export function identity(x: any) {
-    return x
-}
-
-
 export interface IWrappedDataContext {
     input: Object;
     output?: Object;
