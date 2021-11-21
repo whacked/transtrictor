@@ -1,9 +1,6 @@
 {
-   "description": "metadata for input data source -- not the actual data content",
+   "description": "MUTABLE metadata for input data source -- not the actual data content",
    "properties": {
-      "createdAt": {
-         "type": "string"
-      },
       "id": {
          "type": "integer"
       },
@@ -18,12 +15,15 @@
       },
       "sourcePath": {
          "type": "string"
+      },
+      "updatedAt": {
+         "type": "string"
       }
    },
    "required": [
       "id",
       "sourcePath",
-      "createdAt",
+      "updatedAt",
       "sha256",
       "size"
    ],
