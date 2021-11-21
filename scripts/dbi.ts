@@ -1,7 +1,15 @@
 import { canonicalize } from 'json-canonicalize';
 import { hideBin } from 'yargs/helpers';
 import yargs from 'yargs/yargs';
-import { ensureFileSystemInputSourceInDatabase, ensureJsonSchemaInDatabase, getSha256, KnexDbInterface, loadEnvDefinedDatabase } from '../src/database';
+import { JsonSchemaRecordSchema } from '../src/autogen/interfaces/JsonSchemaRecord';
+import {
+    upsertFileSystemInputSourceInDatabase,
+    ensureJsonSchemaInDatabase,
+    getSha256,
+    KnexDbInterface,
+    loadEnvDefinedDatabase,
+    vanillaFilesystemLoader,
+} from '../src/database';
 import { renderJsonnet } from '../src/jsvg-lib';
 import { slurp } from '../src/transformer';
 
@@ -49,8 +57,11 @@ if (require.main == module) {
         renderJsonnet(schemaJsonnetSource, false).then(async (renderedJson) => {
             // renderedJson: object = { a: 1, c: 3, b: 5 }
             if (args.ensureInDatabase) {
-                return ensureJsonSchemaInDatabase(knexDbi, renderedJson).then((sha256) => {
-                    return sha256
+                return ensureJsonSchemaInDatabase(knexDbi, renderedJson).then((jrs) => {
+                    return jrs
+                }).then((jrs: JsonSchemaRecordSchema) => {
+                    console.log(jrs)
+                    return jrs.sha256
                 })
             }
 
@@ -60,14 +71,18 @@ if (require.main == module) {
             } else {
                 return canonicalizedJson
             }
-        }).then((outputString) => {
+        }).then((outputString: string) => {
             console.log(outputString)
         })
     }
 
     if (args.inputSource) {
         const inputSourceContent = slurp(args.inputSource)
-        ensureFileSystemInputSourceInDatabase(knexDbi, args.inputSource).then((sha256) => {
+        upsertFileSystemInputSourceInDatabase(
+            knexDbi,
+            args.inputSource,
+            vanillaFilesystemLoader,
+        ).then((sha256) => {
             console.log(sha256)
         })
     }

@@ -13,6 +13,11 @@ export function slurp(filePath: string): string {
 }
 
 
+export function identity(x: any) {
+    return x
+}
+
+
 export interface IWrappedDataContext {
     input: Object;
     output?: Object;
