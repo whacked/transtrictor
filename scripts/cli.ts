@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as GenerateSchema from 'generate-schema';
 import { hideBin } from 'yargs/helpers';
 import yargs from 'yargs/yargs';
+import { Argv } from 'yargs';
 import { renderJsonnet, validateDataWithSchema, validateJsonnetWithSchema, ValidationResult } from '../src/jsvg-lib';
 import {
     loadTransformerFile, slurp, unwrapTransformationContext, wrapTransformationContext
@@ -17,7 +18,7 @@ export interface IYarguments {
     postTransformSchema?: string,
 }
 
-const argParser = yargs(hideBin(process.argv)).options({
+let yargOptions: { [key in keyof IYarguments]: any } = {
     schema: {
         alias: 's',
         type: 'string',
@@ -45,8 +46,20 @@ const argParser = yargs(hideBin(process.argv)).options({
         type: 'string',
         description: 'path to json(net) json-schema to validate post-transformation output',
     },
-})
+}
 
+export class ArgParser<T> {
+
+    readonly argParser: Argv;
+    constructor(yargOptions: { [key in keyof T]: any }) {
+        this.argParser = yargs(hideBin(process.argv)).options(yargOptions)
+    }
+
+    getArgs(): T {
+        let args: any = this.argParser.parseSync()
+        return args as T
+    }
+}
 
 export async function cliMain(args: IYarguments): Promise<any> {
     const schemaJsonnetSource = slurp(args.schema)
@@ -144,7 +157,8 @@ export async function cliMain(args: IYarguments): Promise<any> {
 }
 
 if (require.main == module) {
-    const args = argParser.parseSync()
+    const argParser = yargs(hideBin(process.argv)).options(yargOptions)
+    const args = argParser.parseSync() as IYarguments
     if (args.input == null && args.jsonLines == null
         || args.input != null && args.jsonLines != null
     ) {
