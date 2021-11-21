@@ -17,9 +17,16 @@ import JsonSchemaRecord from './autogen/schemas/JsonSchemaRecord.schema.json'
 import { unflatten } from 'flat'
 import { validateDataWithSchema } from './jsvg-lib'
 import { slurp } from './util'
+import { Transformer, unwrapTransformationContext, wrapTransformationContext } from './transformer'
 
 
 const AUTOGEN_SCHEMAS_DIRECTORY = path.join(path.dirname(__filename), 'autogen/schemas')
+
+export const TableMapping = {
+    CacheableInputSource,
+    CacheableDataResult,
+    JsonSchemaRecord,
+}
 
 export interface DefaultTables {
     CacheableInputSource: CacheableInputSourceSchema,
@@ -348,9 +355,9 @@ export async function ensureHashableObjectInDatabase(
     knexDbi: KnexDbInterface,
     tableName: DefaultTableNames,
     hashableObject: any,
-    insertableObject: Partial<CacheableInputSourceSchema>
-        | Partial<CacheableDataResultSchema>
-        | Partial<JsonSchemaRecordSchema>,
+    insertableObject: Omit<CacheableInputSourceSchema, 'id'>
+        | Omit<CacheableDataResultSchema, 'id'>
+        | Omit<JsonSchemaRecordSchema, 'id'>,
 ): Promise<QueryStatus> {
     let sha256 = KnexDbInterface.getObjectHash(hashableObject)
     const selectResult = await knexDbi.knexQueryable.expandQuery(
@@ -398,6 +405,21 @@ export interface QueryStatus {
 
 export function vanillaFilesystemLoader(inputSourcePath: string): Promise<string> {
     return Promise.resolve(slurp(inputSourcePath))
+}
+
+export function unflattenToType<T>(dataRecord: any, dataTableName: DefaultTableNames): T {
+    return unflatten(dataRecord)[dataTableName] as T
+}
+
+export async function getRecordBySha256<T>(
+    knexDbi: KnexDbInterface,
+    tableName: DefaultTableNames,
+    sha256: string,
+): Promise<T> {
+    let query = { [tableName]: Object.keys(TableMapping[tableName].properties) }
+    let selector = { [`${tableName}.sha256`]: sha256 }
+    const selectResult = await knexDbi.knexQueryable.expandQuery(query).where(selector).first()
+    return selectResult == null ? null : unflattenToType<T>(selectResult, tableName)
 }
 
 export async function upsertFileSystemInputSourceInDatabase(
@@ -479,15 +501,11 @@ export async function ensureJsonSchemaInDatabase(
             description: jsonSchemaObject.description,
         }
     ).then(async (queryResult) => {
-        let existingEntry = await knexDbi.knexQueryable.expandQuery(
-            {
-                [tableName]: Object.keys(JsonSchemaRecord.properties)
-            }
-        ).where(
-            `${tableName}.sha256`, '=', queryResult.sha256
-        ).first()
-        let unflattened = unflatten(existingEntry)
-        return unflattened[tableName] as JsonSchemaRecordSchema
+        return await getRecordBySha256<JsonSchemaRecordSchema>(
+            knexDbi,
+            tableName,
+            queryResult.sha256,
+        )
     })
 }
 
@@ -548,5 +566,53 @@ export async function runDataImportProcessForInputSource(
                 return qr.operation != null
             }).length
         })
+    })
+}
+
+export async function ensureRawDataInDatabase(
+    knexDbi: KnexDbInterface,
+    sourceData: string,
+): Promise<CacheableDataResultSchema> {
+    let tableName: DefaultTableNames = 'CacheableDataResult'
+    let sha256 = getSha256(sourceData)
+    const selectResult = await getRecordBySha256<CacheableDataResultSchema>(knexDbi, tableName, sha256)
+    if (selectResult != null) {
+        return selectResult
+    } else {
+        let insertable: Omit<CacheableDataResultSchema, 'id'> = {
+            content: sourceData,
+            createdAt: sqliteDateTimeNow(),
+            sha256,
+            size: sourceData.length,
+        }
+        return knexDbi.knexQueryable.knex(tableName).insert(insertable).then((insertResult) => {
+            return getRecordBySha256<CacheableDataResultSchema>(knexDbi, tableName, sha256)
+        })
+    }
+}
+
+export async function runCacheableTransformationForData(
+    knexDbi: KnexDbInterface,
+    transformer: Transformer,
+    sourceData: any,
+) {
+    const dataResultTableName: DefaultTableNames = 'CacheableDataResult'
+    const transformerDataRecord = await ensureRawDataInDatabase(knexDbi, transformer.sourceCode)
+
+    return transformer.transform(
+        wrapTransformationContext(sourceData)
+    ).then((wrappedResult) => {
+        return unwrapTransformationContext(wrappedResult)
+    }).then((transformedData) => {
+        let insertable: Partial<CacheableDataResultSchema> = {
+            content: canonicalize(transformedData),
+            createdAt: sqliteDateTimeNow(),
+        }
+        return ensureHashableObjectInDatabase(
+            knexDbi,
+            dataResultTableName,
+            transformedData,
+            insertable,
+        )
     })
 }
