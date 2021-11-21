@@ -35,7 +35,6 @@
    },
    "required": [
       "id",
-      "CacheableInputSource_id",
       "createdAt",
       "sha256",
       "size",

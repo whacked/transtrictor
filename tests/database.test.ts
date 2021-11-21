@@ -1,13 +1,24 @@
 import { JSONSchema } from '@apidevtools/json-schema-ref-parser'
 import {
-    DefaultTableNames, generateTablesFromSchemas,
+    DefaultTableNames,
+    DefaultTables,
+    ensureRawDataInDatabase,
+    generateTablesFromSchemas,
     getDatabaseModelsJsonSchemas,
     getSha256,
     KnexDbInterface,
-    loadEnvDefinedDatabase, runDataImportProcessForInputSource, upsertFileSystemInputSourceInDatabase
+    loadEnvDefinedDatabase,
+    runDataImportProcessForInputSource,
+    runCacheableTransformationForData,
+    upsertFileSystemInputSourceInDatabase,
+    unflattenToType
 } from '../src/database'
+import { loadTransformerFile, unwrapTransformationContext, wrapTransformationContext } from '../src/transformer'
 import { slurp } from '../src/util'
 import { getTestFilePath } from './common'
+import CacheableDataResult from '../src/autogen/schemas/CacheableDataResult.schema.json'
+import { unflatten } from 'flat'
+import { CacheableDataResultSchema } from '../src/autogen/interfaces/CacheableDataResult'
 
 
 describe('input data caching and dependent operations', () => {
@@ -23,6 +34,24 @@ describe('input data caching and dependent operations', () => {
 
     const databaseName = ':memory:'
     let jsonSchemas = getDatabaseModelsJsonSchemas()
+
+    let sampleDataValidator: JSONSchema = {
+        type: 'object',
+        properties: {
+            tag: { type: 'string' },
+            someNumber: { type: 'number' },
+            tsconfig: {
+                type: 'object',
+                properties: {
+                    charset: { type: 'string' },
+                }
+            }
+        }
+    }
+
+    let splitTextToLinesLoader = (inputSourceContent: string) => {
+        return Promise.resolve(inputSourceContent.split('\n'))
+    }
 
     test('cache a file and detect its change', async () => {
         let knex = loadEnvDefinedDatabase(databaseName)
@@ -61,19 +90,6 @@ describe('input data caching and dependent operations', () => {
     })
 
     test('re-compute data transforms when source data has changed', async () => {
-        let sampleDataValidator: JSONSchema = {
-            type: 'object',
-            properties: {
-                tag: { type: 'string' },
-                someNumber: { type: 'number' },
-                tsconfig: {
-                    type: 'object',
-                    properties: {
-                        charset: { type: 'string' },
-                    }
-                }
-            }
-        }
 
         let knex = loadEnvDefinedDatabase(databaseName)
         return generateTablesFromSchemas(knex, jsonSchemas).then(async () => {
@@ -85,10 +101,6 @@ describe('input data caching and dependent operations', () => {
 
             let initialResult = await upsertFileSystemInputSourceInDatabase(knexDbi, inputSourcePath, preModifiedLoader)
             let initialEntry = await knexDbi.knexQueryable.expandQuery(query).where({ sourcePath: inputSourcePath }).first()
-
-            let splitTextToLinesLoader = (inputSourceContent: string) => {
-                return Promise.resolve(inputSourceContent.split('\n'))
-            }
 
             let numInitialUpdates = await runDataImportProcessForInputSource(
                 knexDbi,
@@ -110,6 +122,118 @@ describe('input data caching and dependent operations', () => {
 
             expect(numNewUpdates).toEqual(1)
 
+        }).finally(() => {
+            knex.destroy()
+        })
+    })
+
+
+    test('cache and load transformer', async () => {
+        let transformer = loadTransformerFile(getTestFilePath('sample-transformer.jsonata'))
+        let knex = loadEnvDefinedDatabase(databaseName)
+
+        return generateTablesFromSchemas(knex, jsonSchemas).then(async () => {
+            const knexDbi = new KnexDbInterface(knex)
+            const tableName: DefaultTableNames = 'CacheableInputSource'
+            const dataTableName: DefaultTableNames = 'CacheableDataResult'
+
+            await runDataImportProcessForInputSource(
+                knexDbi,
+                inputSourcePath,
+                preModifiedLoader,
+                splitTextToLinesLoader,
+                sampleDataValidator,
+            )
+
+            return knexDbi.knexQueryable.expandQuery({
+                [dataTableName]: Object.keys(CacheableDataResult.properties)
+            }).then((rows) => {
+                return rows.map((row: any) => {
+                    return unflattenToType<CacheableDataResultSchema>(row, dataTableName)
+                })
+            }).then(async (dataResults: Array<CacheableDataResultSchema>) => {
+                let out = []
+                for (const dataResult of dataResults) {
+                    let transformedRecord = await runCacheableTransformationForData(
+                        knexDbi,
+                        transformer,
+                        JSON.parse(dataResult.content),
+                    )
+                    out.push(transformedRecord)
+                }
+                expect(out.length).toEqual(2)
+                return out
+            })
+        }).then(async (_) => {
+            const knexDbi = new KnexDbInterface(knex)
+            const dataTableName: DefaultTableNames = 'CacheableDataResult'
+            const cacheableDataResults: Array<CacheableDataResultSchema> = await knexDbi.knexQueryable.expandQuery({
+                [dataTableName]: Object.keys(CacheableDataResult.properties)
+            }).then((rows) => {
+                return rows.map((record: any) => {
+                    return unflattenToType<CacheableDataResultSchema>(record, dataTableName)
+                })
+            })
+            // 1 record for the transformer
+            // 2 records for the source data
+            // 2 records for the transformed data
+            expect(cacheableDataResults.length).toEqual(5)
+
+            let latestRecord = cacheableDataResults[cacheableDataResults.length - 1]
+            console.log('latest', latestRecord)
+            let latestSavedData = JSON.parse(latestRecord.content)
+
+            let originalSourceData = JSON.parse(sampleInputDataLines[sampleInputDataLines.length - 2])
+            let originalTransformedData = await transformer.transform(
+                wrapTransformationContext(originalSourceData)
+            ).then((wrappedTransformedData) => {
+                return unwrapTransformationContext(wrappedTransformedData)
+            })
+            expect(latestSavedData).toMatchObject(originalTransformedData)
+
+            console.debug('simulate upstream source modification')
+            let newImportCount = await runDataImportProcessForInputSource(
+                knexDbi,
+                inputSourcePath,
+                postModifiedLoader,
+                splitTextToLinesLoader,
+                sampleDataValidator,
+            )
+            expect(newImportCount).toEqual(1)
+
+            let transformedRecord = await runCacheableTransformationForData(
+                knexDbi,
+                transformer,
+                JSON.parse(sampleInputDataLines[2]),
+            )
+
+            const newCacheableDataResults: Array<CacheableDataResultSchema> = await knexDbi.knexQueryable.expandQuery({
+                [dataTableName]: Object.keys(CacheableDataResult.properties)
+            }).then((rows) => {
+                return rows.map((record: any) => {
+                    return unflattenToType<CacheableDataResultSchema>(record, dataTableName)
+                })
+            })
+
+            // 1 record for the latest source
+            // 1 record for the latest transformed
+            expect(newCacheableDataResults.length).toEqual(7)
+
+            // new transform process should not affect existing records
+            expect(newCacheableDataResults[4].createdAt).toEqual(latestRecord.createdAt)
+
+            let finalRecord = newCacheableDataResults[6]
+            expect(finalRecord.createdAt).not.toEqual(latestRecord.createdAt)
+
+            // rerun should do nothing
+            let reImportCount = await runDataImportProcessForInputSource(
+                knexDbi,
+                inputSourcePath,
+                postModifiedLoader,
+                splitTextToLinesLoader,
+                sampleDataValidator,
+            )
+            expect(reImportCount).toEqual(0)
         }).finally(() => {
             knex.destroy()
         })
