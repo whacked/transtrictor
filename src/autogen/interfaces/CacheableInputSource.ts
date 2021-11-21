@@ -6,14 +6,14 @@
  */
 
 /**
- * metadata for input data source -- not the actual data content
+ * MUTABLE metadata for input data source -- not the actual data content
  */
 export interface CacheableInputSourceSchema {
-  createdAt: string;
   id: number;
   owner_id?: number;
   sha256: string;
   size: number;
   sourcePath: string;
+  updatedAt: string;
   [k: string]: unknown;
 }

@@ -19,13 +19,13 @@ import { slurp } from './transformer'
 
 const AUTOGEN_SCHEMAS_DIRECTORY = path.join(path.dirname(__filename), 'autogen/schemas')
 
-interface DefaultTables {
+export interface DefaultTables {
     CacheableInputSource: CacheableInputSourceSchema,
     CacheableDataWithSchema: CacheableDataResultSchema,
     JsonSchemaRecord: JsonSchemaRecordSchema,
 }
 
-type DefaultTableNames = keyof DefaultTables
+export type DefaultTableNames = keyof DefaultTables
 
 type SourceTableName = string;
 type TargetTableName = string;
@@ -191,6 +191,8 @@ export async function jsonSchemaToTableCreator(
                             table.integer(propertyName)
                         } else if (propertyName == 'sha256') {  // treat as unique
                             table.string(propertyName, 32).unique()
+                        } else if (propertyName == 'sourcePath') {  // treat as unique
+                            table.string(propertyName).unique()
                         } else {
                             let propDefinition = jsonSchema.properties[propertyName]
                             switch (propDefinition['type']) {
@@ -369,11 +371,11 @@ export async function ensureHashableObjectInDatabase(
     }
 }
 
-function createdTimeNow(): string {
+function sqliteDateTimeNow(): string {
     return new Date().toISOString().replace('T', ' ').replace('Z', '')
 }
 
-export async function ensureFileSystemInputSourceInDatabase(
+export async function upsertFileSystemInputSourceInDatabase(
     knexDbi: KnexDbInterface,
     inputSourcePath: string,
     inputSourceLoader?: (inputSourcePath: string) => Promise<string>,
@@ -388,20 +390,28 @@ export async function ensureFileSystemInputSourceInDatabase(
 
     return inputSourceLoader(inputSourcePath).then((inputSourceContent) => {
         let sha256 = getSha256(inputSourceContent)
+        let whereClause = {
+            [`${tableName}.sourcePath`]: inputSourcePath,
+        }
         return knexDbi.knexQueryable.expandQuery(
             {
                 [tableName]: [
                     'id',
                 ]
             }
-        ).where(
-            `${tableName}.sha256`, '=', sha256
-        ).then((selectResult) => {
+        ).where(whereClause).then((selectResult) => {
             if (selectResult.length > 0) {
-                return Promise.resolve(sha256)
+                let updateable: Partial<CacheableInputSourceSchema> = {
+                    updatedAt: sqliteDateTimeNow(),
+                    sha256: sha256,
+                    size: inputSourceContent.length,
+                }
+                return knexDbi.knexQueryable.knex(tableName).update(updateable).where(whereClause).then((updatedResult) => {
+                    return sha256
+                })
             } else {
                 let insertable: Partial<CacheableInputSourceSchema> = {
-                    createdAt: createdTimeNow(),
+                    updatedAt: sqliteDateTimeNow(),
                     sha256: sha256,
                     size: inputSourceContent.length,
                     sourcePath: inputSourcePath,
@@ -425,7 +435,7 @@ export function ensureJsonSchemaInDatabase(
         // this must be fully specified except for `id`
         {
             content: canonicalize(jsonSchemaObject),
-            createdAt: createdTimeNow(),
+            createdAt: sqliteDateTimeNow(),
             description: jsonSchemaObject.description ?? '',
         }
     )
