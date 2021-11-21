@@ -1,4 +1,5 @@
 import * as fs from 'fs'
+import * as path from 'path'
 import * as KnexLib from 'knex'
 import * as col from 'colorette'
 import Knex from 'knex'
@@ -7,19 +8,20 @@ import memoizerific from 'memoizerific'
 import crypto from 'crypto'
 import DatabaseJoinSpec from './autogen/databaseJoinSpec.json'
 import { CacheableInputSourceSchema } from './autogen/interfaces/CacheableInputSource'
-import { CacheableDataWithSchemaSchema } from './autogen/interfaces/CacheableDataWithSchema'
+import { CacheableDataResultSchema } from './autogen/interfaces/CacheableDataResult'
 import { JsonSchemaRecordSchema } from './autogen/interfaces/JsonSchemaRecord'
 import { canonicalize } from 'json-canonicalize'
 import CacheableInputSource from './autogen/schemas/CacheableInputSource.schema.json'
-import CacheableDataWithSchema from './autogen/schemas/CacheableDataWithSchema.schema.json'
+import CacheableDataResult from './autogen/schemas/CacheableDataResult.schema.json'
 import JsonSchemaRecord from './autogen/schemas/JsonSchemaRecord.schema.json'
 import { slurp } from './transformer'
 
 
+const AUTOGEN_SCHEMAS_DIRECTORY = path.join(path.dirname(__filename), 'autogen/schemas')
 
 interface DefaultTables {
     CacheableInputSource: CacheableInputSourceSchema,
-    CacheableDataWithSchema: CacheableDataWithSchemaSchema,
+    CacheableDataWithSchema: CacheableDataResultSchema,
     JsonSchemaRecord: JsonSchemaRecordSchema,
 }
 
@@ -275,4 +277,168 @@ export async function generateTablesFromSchemas(knexInstance: KnexLib.Knex, json
         processedTables,
         foreignKeyResults,
     }
+}
+
+type sha256HexString = string
+
+
+export const getSha256 = memoizerific(1000)((content: string): sha256HexString => {
+    return crypto.createHash('sha256').update(content).digest('hex')
+})
+
+export class KnexDbInterface {
+
+    knexQueryable: KnexQueryable
+    getOrCreateJsonSchema: (jsonSchemaSource: string) => Promise<sha256HexString>
+
+    static getObjectHash(obj: any): string {
+        let canonicalJson = canonicalize(obj)
+        return getSha256(canonicalJson)
+    }
+
+    constructor(private readonly knexInstance: KnexLib.Knex) {
+        const joinSpec: JoinSpec = DatabaseJoinSpec
+        this.knexQueryable = new KnexQueryable(this.knexInstance, joinSpec)
+
+        this.getOrCreateJsonSchema = memoizerific(50)(async (jsonSchemaSource: string): Promise<sha256HexString> => {
+            let hash: sha256HexString = getSha256(jsonSchemaSource)
+            return this.knexQueryable.expandQuery({
+
+            })
+        })
+    }
+}
+
+export function loadEnvDefinedDatabase(databaseName?: string): KnexLib.Knex {
+    require('dotenv').config()
+    let SQLITE_DATABASE: string
+    if (databaseName == null) {
+        databaseName = process.env.DATABASE_NAME
+    }
+
+    if (databaseName == null) {
+        console.warn('WARN: no database in DATABASE_NAME envvar/.env; fallback to memory')
+        SQLITE_DATABASE = ':memory:'
+    } else {
+        SQLITE_DATABASE = process.env.DATABASE_NAME
+    }
+    console.info(`loading database: ${SQLITE_DATABASE}`)
+    return Knex({
+        client: 'sqlite3',
+        connection: {
+            filename: SQLITE_DATABASE,
+        },
+    })
+}
+
+export function getDatabaseModelsJsonSchemas() {
+    return fs.readdirSync(AUTOGEN_SCHEMAS_DIRECTORY).map((schemaFileName) => {
+        console.log(`processing ${col.blue(schemaFileName)}...`)
+        let schemaData = JSON.parse(slurp(path.join(AUTOGEN_SCHEMAS_DIRECTORY, schemaFileName))) as JSONSchema
+        if (schemaData.title == null) {
+            schemaData.title = schemaFileName.split('.')[0]
+        }
+        return schemaData
+    })
+}
+
+export function initializeDatabaseWithDefaultTables(databaseName?: string) {
+    const knex = loadEnvDefinedDatabase(databaseName)
+    let jsonSchemas = getDatabaseModelsJsonSchemas()
+    return generateTablesFromSchemas(knex, jsonSchemas).finally(() => {
+        knex.destroy()
+    })
+}
+
+export async function ensureHashableObjectInDatabase(
+    knexDbi: KnexDbInterface,
+    tableName: DefaultTableNames,
+    hashableObject: any,
+    insertableObject: Partial<CacheableInputSourceSchema>
+        | Partial<CacheableDataResultSchema>
+        | Partial<JsonSchemaRecordSchema>,
+): Promise<string> {
+    let sha256 = KnexDbInterface.getObjectHash(hashableObject)
+    const selectResult = await knexDbi.knexQueryable.expandQuery(
+        {
+            [tableName]: [
+                'id',
+            ]
+        }
+    ).where(
+        `${tableName}.sha256`, '=', sha256
+    )
+    if (selectResult.length > 0) {
+        return Promise.resolve(sha256)
+    } else {
+        let insertable = {
+            ...insertableObject,
+            sha256,
+        }
+        return knexDbi.knexQueryable.knex(tableName).insert(insertable).then((insertResult) => {
+            return sha256
+        })
+    }
+}
+
+function createdTimeNow(): string {
+    return new Date().toISOString().replace('T', ' ').replace('Z', '')
+}
+
+export async function ensureFileSystemInputSourceInDatabase(
+    knexDbi: KnexDbInterface,
+    inputSourcePath: string,
+    inputSourceLoader?: (inputSourcePath: string) => Promise<string>,
+) {
+    const tableName: DefaultTableNames = 'CacheableInputSource'
+
+    if (inputSourceLoader == null) {
+        inputSourceLoader = (inputSourcePath: string): Promise<string> => {
+            return Promise.resolve(slurp(inputSourcePath))
+        }
+    }
+
+    return inputSourceLoader(inputSourcePath).then((inputSourceContent) => {
+        let sha256 = getSha256(inputSourceContent)
+        return knexDbi.knexQueryable.expandQuery(
+            {
+                [tableName]: [
+                    'id',
+                ]
+            }
+        ).where(
+            `${tableName}.sha256`, '=', sha256
+        ).then((selectResult) => {
+            if (selectResult.length > 0) {
+                return Promise.resolve(sha256)
+            } else {
+                let insertable: Partial<CacheableInputSourceSchema> = {
+                    createdAt: createdTimeNow(),
+                    sha256: sha256,
+                    size: inputSourceContent.length,
+                    sourcePath: inputSourcePath,
+                }
+                return knexDbi.knexQueryable.knex(tableName).insert(insertable).then((insertResult) => {
+                    return sha256
+                })
+            }
+        })
+    })
+}
+
+export function ensureJsonSchemaInDatabase(
+    knexDbi: KnexDbInterface,
+    jsonSchemaObject: JSONSchema
+) {
+    return ensureHashableObjectInDatabase(
+        knexDbi,
+        'JsonSchemaRecord',
+        jsonSchemaObject,
+        // this must be fully specified except for `id`
+        {
+            content: canonicalize(jsonSchemaObject),
+            createdAt: createdTimeNow(),
+            description: jsonSchemaObject.description ?? '',
+        }
+    )
 }
