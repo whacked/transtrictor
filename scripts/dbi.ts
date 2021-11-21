@@ -11,7 +11,7 @@ import {
     vanillaFilesystemLoader,
 } from '../src/database';
 import { renderJsonnet } from '../src/jsvg-lib';
-import { slurp } from '../src/transformer';
+import { slurp } from '../src/util';
 
 
 export interface IYarguments {

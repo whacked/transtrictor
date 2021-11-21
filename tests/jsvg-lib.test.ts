@@ -1,26 +1,14 @@
-import * as jsvg from './jsvg-lib'
-import { JS } from './jsvg-lib'
-import * as path from 'path'
+import * as jsvg from '../src/jsvg-lib'
+import { JS } from '../src/jsvg-lib'
 import {
     RawMorphismTransformer,
-    slurp,
     unwrapTransformationContext,
     wrapTransformationContext
-} from './transformer'
+} from '../src/transformer'
 import {
     cliMain
 } from '../scripts/cli'
-
-const TEST_DATA_DIR = path.join(__dirname, 'testdata')
-
-
-function getTestFilePath(testFileName: string): string {
-    return path.join(TEST_DATA_DIR, testFileName)
-}
-
-function slurpTestData(testFileName: string) {
-    return slurp(getTestFilePath(testFileName))
-}
+import { getTestFilePath, slurpTestData } from './common'
 
 
 test('valid jsonnet input', async () => {

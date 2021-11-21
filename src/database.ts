@@ -14,9 +14,9 @@ import { canonicalize } from 'json-canonicalize'
 import CacheableInputSource from './autogen/schemas/CacheableInputSource.schema.json'
 import CacheableDataResult from './autogen/schemas/CacheableDataResult.schema.json'
 import JsonSchemaRecord from './autogen/schemas/JsonSchemaRecord.schema.json'
-import { slurp } from './transformer'
 import { unflatten } from 'flat'
 import { validateDataWithSchema } from './jsvg-lib'
+import { slurp } from './util'
 
 
 const AUTOGEN_SCHEMAS_DIRECTORY = path.join(path.dirname(__filename), 'autogen/schemas')

@@ -1,22 +1,13 @@
 import { JSONSchema } from '@apidevtools/json-schema-ref-parser'
-import * as path from 'path'
 import {
     DefaultTableNames, generateTablesFromSchemas,
     getDatabaseModelsJsonSchemas,
     getSha256,
     KnexDbInterface,
     loadEnvDefinedDatabase, runDataImportProcessForInputSource, upsertFileSystemInputSourceInDatabase
-} from './database'
-import {
-    slurp
-} from './transformer'
-
-const TEST_DATA_DIR = path.join(__dirname, 'testdata')
-
-
-function getTestFilePath(testFileName: string): string {
-    return path.join(TEST_DATA_DIR, testFileName)
-}
+} from '../src/database'
+import { slurp } from '../src/util'
+import { getTestFilePath } from './common'
 
 
 describe('input data caching and dependent operations', () => {
@@ -35,7 +26,6 @@ describe('input data caching and dependent operations', () => {
 
     test('cache a file and detect its change', async () => {
         let knex = loadEnvDefinedDatabase(databaseName)
-        let jsonSchemas = getDatabaseModelsJsonSchemas()
         return generateTablesFromSchemas(knex, jsonSchemas).then(async () => {
             const knexDbi = new KnexDbInterface(knex)
             const tableName: DefaultTableNames = 'CacheableInputSource'
@@ -124,5 +114,4 @@ describe('input data caching and dependent operations', () => {
             knex.destroy()
         })
     })
-
 })

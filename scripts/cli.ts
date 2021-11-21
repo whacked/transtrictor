@@ -5,9 +5,10 @@ import yargs from 'yargs/yargs';
 import { Argv } from 'yargs';
 import { renderJsonnet, validateDataWithSchema, validateJsonnetWithSchema, ValidationResult } from '../src/jsvg-lib';
 import {
-    loadTransformerFile, slurp, unwrapTransformationContext, wrapTransformationContext
+    loadTransformerFile, unwrapTransformationContext, wrapTransformationContext
 } from '../src/transformer';
 import * as readline from 'readline'
+import { slurp } from '../src/util';
 
 
 export interface IYarguments {
