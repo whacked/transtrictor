@@ -1,5 +1,9 @@
 require('dotenv').config()
-import { initializeDatabaseWithDefaultTables } from '../src/database'
+import { generateTablesFromSchemas, getDatabaseModelsJsonSchemas, initializeDatabaseWithDefaultTables, loadEnvDefinedDatabase } from '../src/database'
 
 
-initializeDatabaseWithDefaultTables(process.env.DATABASE_NAME)
+const knex = loadEnvDefinedDatabase(process.env.DATABASE_NAME)
+let jsonSchemas = getDatabaseModelsJsonSchemas()
+generateTablesFromSchemas(knex, jsonSchemas).finally(() => {
+    knex.destroy()
+})

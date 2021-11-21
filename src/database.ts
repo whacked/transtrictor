@@ -311,22 +311,18 @@ export class KnexDbInterface {
 
 export function loadEnvDefinedDatabase(databaseName?: string): KnexLib.Knex {
     require('dotenv').config()
-    let SQLITE_DATABASE: string
     if (databaseName == null) {
         databaseName = process.env.DATABASE_NAME
     }
-
     if (databaseName == null) {
         console.warn('WARN: no database in DATABASE_NAME envvar/.env; fallback to memory')
-        SQLITE_DATABASE = ':memory:'
-    } else {
-        SQLITE_DATABASE = process.env.DATABASE_NAME
+        databaseName = ':memory:'
     }
-    console.info(`loading database: ${SQLITE_DATABASE}`)
+    console.info(`loading database: ${databaseName}`)
     return Knex({
         client: 'sqlite3',
         connection: {
-            filename: SQLITE_DATABASE,
+            filename: databaseName,
         },
     })
 }
@@ -339,14 +335,6 @@ export function getDatabaseModelsJsonSchemas() {
             schemaData.title = schemaFileName.split('.')[0]
         }
         return schemaData
-    })
-}
-
-export function initializeDatabaseWithDefaultTables(databaseName?: string) {
-    const knex = loadEnvDefinedDatabase(databaseName)
-    let jsonSchemas = getDatabaseModelsJsonSchemas()
-    return generateTablesFromSchemas(knex, jsonSchemas).finally(() => {
-        knex.destroy()
     })
 }
 
