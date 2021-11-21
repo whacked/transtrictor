@@ -20,18 +20,22 @@ function preprocessJsonSchema_BANG(jsonSchemaObject: object) {
 }
 
 
-export async function renderJsonnet(jsonnetSource: string): Promise<object> {
+export async function renderJsonnet(jsonnetSource: string, shouldDefererence: boolean = true): Promise<object> {
 
     const jsonnet = new Jsonnet()
     const jsonString = await jsonnet.evaluateSnippet(jsonnetSource)
     const jsonObject = JSON.parse(jsonString)
-    let dereferenced = await $RefParser.dereference(jsonObject)
-    preprocessJsonSchema_BANG(dereferenced)
-    // this may or may not help with schemas with circular defs
-    // but Ajv will not work with circular schcemas
-    // https://ajv.js.org/security.html#circular-references-in-javascript-objects
-    // return jc.decycle(dereferenced)
-    return Promise.resolve(dereferenced)
+    if (shouldDefererence) {
+        let dereferenced = await $RefParser.dereference(jsonObject)
+        preprocessJsonSchema_BANG(dereferenced)
+        // this may or may not help with schemas with circular defs
+        // but Ajv will not work with circular schcemas
+        // https://ajv.js.org/security.html#circular-references-in-javascript-objects
+        // return jc.decycle(dereferenced)
+        return Promise.resolve(dereferenced)
+    } else {
+        return jsonObject
+    }
 }
 
 
