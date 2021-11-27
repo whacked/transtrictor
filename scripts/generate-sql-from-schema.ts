@@ -1,5 +1,5 @@
 require('dotenv').config()
-import { generateTablesFromSchemas, getDatabaseModelsJsonSchemas, initializeDatabaseWithDefaultTables, loadEnvDefinedDatabase } from '../src/database'
+import { generateTablesFromSchemas, getDatabaseModelsJsonSchemas, loadEnvDefinedDatabase } from '../src/database'
 
 
 const knex = loadEnvDefinedDatabase(process.env.DATABASE_NAME)

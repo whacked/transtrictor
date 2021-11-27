@@ -25,5 +25,6 @@ pkgs.mkShell {
     }
 
     alias run-tests='jest'
+    alias run-webserver='parcel app/index.html'
   '';
 }
