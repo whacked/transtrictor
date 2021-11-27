@@ -62,6 +62,26 @@ export class ArgParser<T> {
     }
 }
 
+function readStdinOrFile(inputPath: string): Promise<string> {
+    if (inputPath == '-') {
+        process.stdin.resume();
+        process.stdin.setEncoding('utf-8');
+        let readBuffer: string = ''
+        return new Promise((resolve, reject) => {
+            process.stdin.on('data', inputData => {
+                readBuffer += inputData
+            })
+            process.stdin.on('end', _ => {
+                resolve(readBuffer)
+            })
+        }).then((targetDataJsonnetSource) => {
+            return targetDataJsonnetSource as string
+        })
+    } else {
+        return Promise.resolve(slurp(inputPath))
+    }
+}
+
 export async function cliMain(args: IYarguments): Promise<any> {
     const schemaJsonnetSource = slurp(args.schema)
 
@@ -112,26 +132,10 @@ export async function cliMain(args: IYarguments): Promise<any> {
             })
     }
 
-
     if (args.input != null) {
-        if (args.input == '-') {
-            process.stdin.resume();
-            process.stdin.setEncoding('utf-8');
-            let readBuffer: string = ''
-            return new Promise((resolve, reject) => {
-                process.stdin.on('data', inputData => {
-                    readBuffer += inputData
-                })
-                process.stdin.on('end', _ => {
-                    resolve(readBuffer)
-                })
-            }).then((targetDataJsonnetSource) => {
-                return processJsonnetStringTransformation(targetDataJsonnetSource as string)
-            })
-        } else {
-            return Promise.resolve(
-                processJsonnetStringTransformation(slurp(args.input)))
-        }
+        return readStdinOrFile(args.input).then((jsonnetSource: string) => {
+            return processJsonnetStringTransformation(jsonnetSource)
+        })
     } else if (args.jsonLines != null) {
         let lineReader: readline.Interface
         let interfaceOptions = {
@@ -168,8 +172,9 @@ if (require.main == module) {
     }
 
     if (args.schema == null) {
-        let inputJsonnetSource = slurp(args.input)
-        renderJsonnet(inputJsonnetSource).then((renderedData) => {
+        readStdinOrFile(args.input).then((inputJsonnetSource: string) => {
+            return renderJsonnet(inputJsonnetSource)
+        }).then((renderedData) => {
             let schema = GenerateSchema.json(
                 'GeneratedSchema',
                 renderedData,
