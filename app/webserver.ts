@@ -32,6 +32,6 @@ if (require.main == module) {
         }
     })
 
-    SchemaStatisticsLoader.autoLoadData(randomData)
+    SchemaStatisticsLoader.autoLoadSingleDataset(randomData)
     startWebserver()
 }

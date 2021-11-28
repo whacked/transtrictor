@@ -3,7 +3,6 @@ import * as GenerateSchema from 'generate-schema';
 import { canonicalize } from 'json-canonicalize';
 import { getSha256 } from '../src/database';
 import {
-    DATASET_TABLE_NAME,
     ExtendedResponse,
     SchemaStatistic,
     SCHEMA_TABLE_NAME,
@@ -11,18 +10,32 @@ import {
 
 
 export class SchemaStatisticsLoader {
+
+    static readonly DEFAULT_SINGLE_DATABASE_NAME = 'datasets'
+
     static _singleton: SchemaStatisticsLoader
 
     static getSingleton() {
         return SchemaStatisticsLoader._singleton
     }
-    static autoLoadData(dataRecords: Array<any>) {
+    static autoLoadSingleDataset(dataRecords: Array<any>, singleDatasetDatabaseName: string = SchemaStatisticsLoader.DEFAULT_SINGLE_DATABASE_NAME) {
         if (SchemaStatisticsLoader._singleton != null) {
-            console.warn('autoLoadData can only be run once')
+            console.warn('autoLoadSingleDataset can only be run once')
             return
         }
 
-        SchemaStatisticsLoader._singleton = new SchemaStatisticsLoader(dataRecords)
+        SchemaStatisticsLoader._singleton = new SchemaStatisticsLoader(dataRecords, singleDatasetDatabaseName)
+    }
+
+    static autoLoadDatasets(dataRecordsMapping: Record<string, Array<any>>): Record<string, SchemaStatisticsLoader> {
+        let out: Record<string, SchemaStatisticsLoader> = {}
+        for (const databaseName of Object.keys(dataRecordsMapping)) {
+            console.info(`loading database ${databaseName}`)
+            let loader = new SchemaStatisticsLoader(dataRecordsMapping[databaseName], databaseName)
+            out[databaseName] = loader
+        }
+
+        return out
     }
 
     private _allExtendedResponses: Array<ExtendedResponse>
@@ -36,8 +49,8 @@ export class SchemaStatisticsLoader {
         return this._summaryStatitics
     }
 
-    seedDbData() {
-        seedDbData(DATASET_TABLE_NAME, async () => {
+    seedDbData(seedRecordsToDatabase: string) {
+        seedDbData(seedRecordsToDatabase, async () => {
             return Promise.resolve(this.getAllExtendedResponses())
         })
     }
@@ -48,7 +61,7 @@ export class SchemaStatisticsLoader {
         })
     }
 
-    constructor(dataRecords: Array<any>, shouldInitializeDatabase: boolean = true) {
+    constructor(dataRecords: Array<any>, seedRecordsToDatabase: string = null) {
         this._allExtendedResponses = []
         this._summaryStatitics = dataRecords.reduce((accumulator, currentValue, currentIndex) => {
 
@@ -69,6 +82,7 @@ export class SchemaStatisticsLoader {
                 schemaHash: hash,
                 firstAppearedAt: currentIndex,
                 total: 0,
+                databaseName: seedRecordsToDatabase ?? 'default',
             }
             return {
                 ...accumulator,
@@ -80,8 +94,8 @@ export class SchemaStatisticsLoader {
             }
         }, {} as Record<string, SchemaStatistic>)
 
-        if (shouldInitializeDatabase) {
-            this.seedDbData()
+        if (seedRecordsToDatabase != null) {
+            this.seedDbData(seedRecordsToDatabase)
             this.seedDbSchemaData()
         }
     }
@@ -91,6 +105,8 @@ export const pouchDbConfig = PouchDB.plugin(require('pouchdb-adapter-memory')).d
     adapter: 'memory',
 })
 
+let documentCounter = 0
+
 export async function seedDbData(databaseName: string, loadAllDocuments: () => Promise<Array<any>>) {
     const pdb = new PouchDB(databaseName, {
         adapter: 'memory',
@@ -99,7 +115,7 @@ export async function seedDbData(databaseName: string, loadAllDocuments: () => P
     return loadAllDocuments().then((documents: Array<any>) => {
         documents.forEach((doc, index) => {
             pdb.put({
-                _id: index.toString(),
+                _id: `${++documentCounter}`,
                 ...doc,
             }).catch((err) => {
                 console.warn(err)
