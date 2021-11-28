@@ -1,5 +1,4 @@
 export const SCHEMA_TABLE_NAME = 'schemas'
-export const DATASET_TABLE_NAME = 'datasets'  // possible to automate discover using GET /api/_all_dbs
 
 export interface SchemaStatistic {
     firstAppearedAt: any,
@@ -7,6 +6,7 @@ export interface SchemaStatistic {
     total: number,
     schemaHash: string,
     sourceCode: string,
+    databaseName: string,
 
     // @types/pouchdb-core
     dbRecord?: {

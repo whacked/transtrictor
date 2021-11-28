@@ -14,7 +14,7 @@ import * as jsondiffpatch from 'jsondiffpatch'
 import 'jsondiffpatch/dist/formatters-styles/html.css'
 import 'jsondiffpatch/dist/formatters-styles/annotated.css'
 import {
-    DATASET_TABLE_NAME, SchemaStatistic, SCHEMA_TABLE_NAME,
+    SchemaStatistic, SCHEMA_TABLE_NAME,
 } from '../src/defs'
 
 export interface ExtendedResponse {
@@ -34,6 +34,20 @@ async function dbGet<ResponseInterface>(databaseName: string, requestString: str
     }
     return fetch(baseEndpoint).then((response) => {
         return response.json()
+    })
+}
+
+async function dbGetUserDatabases(): Promise<Array<string>> {
+    return dbGet<PouchDB.Core.AllDocsResponse<Array<string>>>('_all_dbs').then((response) => {
+        return (response as any).filter((databaseName: string) => {
+            switch (databaseName) {
+                case '_replicator':
+                case '_users':
+                case 'schemas':
+                    return false
+            }
+            return true
+        })
     })
 }
 
@@ -66,8 +80,8 @@ async function dbFindDocumentsWithSchemaHash<T>(databaseName: string, schemaHash
         })
 }
 
-async function dbGetDataDocumentsWithSchemaHash(hash: string) {
-    return dbFindDocumentsWithSchemaHash<ExtendedResponse[]>(DATASET_TABLE_NAME, hash)
+async function dbGetDataDocumentsWithSchemaHash(databaseName: string, hash: string) {
+    return dbFindDocumentsWithSchemaHash<ExtendedResponse[]>(databaseName, hash)
 }
 
 async function loadDocument<T>(databaseName: string, id: string, revLookupObject?: any, updateRevLookupObject?: Function): Promise<T> {
@@ -117,12 +131,15 @@ const MainComponent = () => {
     const [documents, setDocuments] = useState<Array<SchemaStatistic>>([]);
     const [documentLookup, setDocumentLookup] = useState<Record<string, any>>({})
 
+    const [databases, setDatabases] = useState<Array<string>>([])
+
     const [activeSchemaStatistic, setActiveSchemaStatistic] = useState<SchemaStatistic>(null)
     const [leftDocument, setLeftDocument] = useState<any>(null)
     const [rightDocument, setRightDocument] = useState<any>(null)
     const [visualDiffHtml, setVisualDiffHtml] = useState<string>('')
     const [dataScrubberRecords, setDataScrubberRecords] = useState<Array<any>>([])
     const [focusedDataScrubberIndex, setFocusedDataScrubberIndex] = useState<number>(0)
+    const [activeDatabase, setActiveDatabase] = useState<string>(null);
 
     useEffect(() => {
         dbGetAllDocuments<SchemaStatistic>(SCHEMA_TABLE_NAME).then((response) => {
@@ -142,6 +159,13 @@ const MainComponent = () => {
                 newDocumentLookup[doc.dbRecord.id] = doc
             })
             setDocumentLookup(newDocumentLookup)
+        })
+
+        dbGetUserDatabases().then((databases) => {
+            setDatabases(databases)
+            if (databases.length > 0) {
+                setActiveDatabase(databases[0])
+            }
         })
     }, [])
 
@@ -171,6 +195,30 @@ const MainComponent = () => {
 
     return (
         <div>
+            <div style={{
+                display: 'flex',
+            }}>
+                {
+                    databases.map((databaseName, index) => {
+                        return (
+                            <div
+                                style={{
+                                    display: 'flex',
+                                }}
+                                key={`database-row-${index}`}>
+                                <button onClick={
+                                    () => {
+                                        setActiveDatabase(databaseName)
+                                    }
+                                }>
+                                    {databaseName}
+                                </button>
+                            </div>
+                        )
+                    })
+                }
+            </div>
+            <strong>{activeDatabase == null ? 'attempting to load databases...' : `database: ${activeDatabase}`}</strong>
             <table style={{
                 border: '1px solid black',
             }}>
@@ -184,10 +232,13 @@ const MainComponent = () => {
                         <th>total</th>
                         <th>first appeared</th>
                         <th>last appeared</th>
+                        <th>database</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {documents.map((doc, index) => {
+                    {documents.filter((schemaDoc) => {
+                        return schemaDoc.databaseName == activeDatabase
+                    }).map((schemaDoc, index) => {
                         return (
                             <tr key={`tr-${index}`}>
                                 <td>
@@ -196,45 +247,53 @@ const MainComponent = () => {
                                 <td>
                                     <input type='radio' name='displayLeft'
                                         onChange={setLeftDocumentOnClick}
-                                        value={doc.dbRecord.id} />
+                                        value={schemaDoc.dbRecord.id} />
                                 </td>
                                 <td>
 
                                     <input type='radio' name='displayRight'
                                         onChange={setRightDocumentOnClick}
-                                        value={doc.dbRecord.id} />
+                                        value={schemaDoc.dbRecord.id} />
                                 </td>
                                 <td>
                                     <span
                                         style={{
                                             fontFamily: 'monospace',
                                         }}
-                                        title={`${doc.dbRecord.value.rev}`}
+                                        title={`${schemaDoc.dbRecord.value.rev}`}
                                     >
-                                        {doc.dbRecord.value.rev.substring(0, 8)}
+                                        {schemaDoc.dbRecord.value.rev.substring(0, 8)}
                                     </span>
                                 </td>
                                 <td>
                                     <button
+                                        style={{
+                                            border: activeSchemaStatistic?.schemaHash == schemaDoc.schemaHash
+                                                ? '2px solid black'
+                                                : null
+                                        }}
                                         onClick={(event) => {
-                                            setActiveSchemaStatistic(doc)
-                                            dbGetDataDocumentsWithSchemaHash(doc.schemaHash).then((extendedResponses) => {
+                                            setActiveSchemaStatistic(schemaDoc)
+                                            dbGetDataDocumentsWithSchemaHash(activeDatabase, schemaDoc.schemaHash).then((extendedResponses) => {
                                                 setDataScrubberRecords(extendedResponses.map((extendedResponse) => {
                                                     return extendedResponse.data
                                                 }))
                                             })
                                         }}>
-                                        {doc.schemaHash.substring(0, 8)}
+                                        {schemaDoc.schemaHash.substring(0, 8)}
                                     </button>
                                 </td>
                                 <td>
-                                    {doc.total}
+                                    {schemaDoc.total}
                                 </td>
                                 <td>
-                                    {doc.firstAppearedAt}
+                                    {schemaDoc.firstAppearedAt}
                                 </td>
                                 <td>
-                                    {doc.lastAppearedAt}
+                                    {schemaDoc.lastAppearedAt}
+                                </td>
+                                <td>
+                                    {schemaDoc.databaseName}
                                 </td>
                             </tr>
                         )
