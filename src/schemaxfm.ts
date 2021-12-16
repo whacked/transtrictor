@@ -63,12 +63,13 @@ export function mergeSchemas(...args: Array<any>): JSONSchema {
 
 
 const NAMESPACE_DELIMITER = '/'
+const SUBKEY_DELIMITER = '.'  // same as flat default
 
 export function mergeNamespacedData(namedMergeEntries: Record<string, any>) {
     let out = {}
     for (const namespace in namedMergeEntries) {
         let subData = namedMergeEntries[namespace]
-        let flattenedSubData = flatten(subData)
+        let flattenedSubData = flatten(subData, { delimiter: SUBKEY_DELIMITER })
         for (const key in flattenedSubData) {
             let namespacedKey = `${namespace}${NAMESPACE_DELIMITER}${key}`
             out[namespacedKey] = flattenedSubData[key]
@@ -89,7 +90,7 @@ export function splitNamespacedData(namespacedData: any) {
 
     for (const namespace in out) {
         let flattenedData = out[namespace]
-        out[namespace] = unflatten(flattenedData)
+        out[namespace] = unflatten(flattenedData, { delimiter: SUBKEY_DELIMITER })
     }
     return out
 }
