@@ -1,4 +1,4 @@
-import { getSubSchema, mergeSchemas } from '../src/schemaxfm'
+import { getSubSchema, mergeNamespacedData, mergeSchemas, splitNamespacedData } from '../src/schemaxfm'
 import JsonSchemaRecord from '../src/autogen/schemas/JsonSchemaRecord.schema.json'
 import CacheableInputSource from '../src/autogen/schemas/CacheableInputSource.schema.json'
 import CacheableDataResult from '../src/autogen/schemas/CacheableDataResult.schema.json'
@@ -77,3 +77,50 @@ describe('schema merging', () => {
             mergedSchema2.properties['CacheableInputSource_bar']
         )
     })
+})
+
+describe('data merging and splitting', () => {
+    let entry1 = {
+        foo: 'bar',
+        nested1: {
+            someNumber: 2,
+            moreNested1: {
+                weather: 'sunny',
+                side: 'up',
+            }
+        }
+    }
+    let entry2 = {
+        baz: 'quux',
+        nested1: {
+            confusing: 'name',
+        },
+        nested2: {
+            someFloat: 3.14,
+            confusing: 'quux',
+        },
+    }
+
+    let mergedData = mergeNamespacedData({
+        namespace1: entry1,
+        namespace2: entry2,
+    })
+
+    test('merge/split a flattened, namespace-based merged object', () => {
+        expect(mergedData).toMatchObject({
+            'namespace1/foo': 'bar',
+            'namespace1/nested1.someNumber': 2,
+            'namespace1/nested1.moreNested1.weather': 'sunny',
+            'namespace1/nested1.moreNested1.side': 'up',
+            'namespace2/baz': 'quux',
+            'namespace2/nested1.confusing': 'name',
+            'namespace2/nested2.someFloat': 3.14,
+            'namespace2/nested2.confusing': 'quux',
+        })
+
+        expect(splitNamespacedData(mergedData)).toMatchObject({
+            namespace1: entry1,
+            namespace2: entry2,
+        })
+    })
+})

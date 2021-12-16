@@ -1,5 +1,5 @@
 import { JSONSchema } from "json-schema-ref-parser";
-import { flatten } from 'flat'
+import { flatten, unflatten } from 'flat'
 
 
 export function getSubSchema(scm) {
@@ -59,4 +59,37 @@ export function mergeSchemas(...args: Array<any>): JSONSchema {
         }
         return _mergeArrayOfSchemas(args)
     }
+}
+
+
+const NAMESPACE_DELIMITER = '/'
+
+export function mergeNamespacedData(namedMergeEntries: Record<string, any>) {
+    let out = {}
+    for (const namespace in namedMergeEntries) {
+        let subData = namedMergeEntries[namespace]
+        let flattenedSubData = flatten(subData)
+        for (const key in flattenedSubData) {
+            let namespacedKey = `${namespace}${NAMESPACE_DELIMITER}${key}`
+            out[namespacedKey] = flattenedSubData[key]
+        }
+    }
+    return out
+}
+
+export function splitNamespacedData(namespacedData: any) {
+    let out = {}
+    for (const key in namespacedData) {
+        let [namespace, subkey] = key.split(NAMESPACE_DELIMITER, 2)
+        if (out[namespace] == null) {
+            out[namespace] = {}
+        }
+        out[namespace][subkey] = namespacedData[key]
+    }
+
+    for (const namespace in out) {
+        let flattenedData = out[namespace]
+        out[namespace] = unflatten(flattenedData)
+    }
+    return out
 }
