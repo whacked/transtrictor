@@ -1,4 +1,4 @@
-import { getSubSchema, mergeNamespacedData, mergeSchemas, splitNamespacedData } from '../src/schemaxfm'
+import { getFlattenedNamespacedSchema, getFlattenedSchema, getSubSchema, mergeNamespacedData, mergeSchemas, splitNamespacedData } from '../src/schemaxfm'
 import JsonSchemaRecord from '../src/autogen/schemas/JsonSchemaRecord.schema.json'
 import CacheableInputSource from '../src/autogen/schemas/CacheableInputSource.schema.json'
 import CacheableDataResult from '../src/autogen/schemas/CacheableDataResult.schema.json'
@@ -13,6 +13,12 @@ describe('schema merging', () => {
             funky: {
                 type: 'string',
             },
+            tags: {
+                type: 'array',
+                items: {
+                    type: 'string'
+                }
+            }
         },
     }
 
@@ -23,6 +29,12 @@ describe('schema merging', () => {
             monkey: {
                 type: 'number',
             },
+            bags: {
+                type: 'array',
+                items: {
+                    type: 'boolean',
+                }
+            }
         }
     }
 
@@ -77,6 +89,43 @@ describe('schema merging', () => {
             mergedSchema2.properties['CacheableInputSource_bar']
         )
     })
+
+    test('simple schema flattening', () => {
+        let flattenedSchema = getFlattenedSchema({
+            type: 'object',
+            properties: {
+                planet: {
+                    type: 'string',
+                },
+                extra: {
+                    type: 'object',
+                    properties: schema1.properties,
+                },
+            },
+        } as any)
+        expect(flattenedSchema).toMatchObject({
+            properties: {
+                planet: { type: 'string' },
+                'extra.funky': { type: 'string' },
+                'extra.tags': {
+                    type: 'array',
+                    items: { type: 'string' },
+                },
+            }
+        })
+    })
+
+    test('flattened schema', () => {
+        let flattenedSchema = getFlattenedNamespacedSchema(schema1, schema2)
+        expect(flattenedSchema).toMatchObject({
+            properties: {
+                'schema1/funky': { type: 'string', },
+                'schema1/tags': { type: 'array', items: { type: 'string' } },
+                'schema2/monkey': { type: 'number', },
+                'schema2/bags': { type: 'array', items: { type: 'boolean' } },
+            }
+        })
+    })
 })
 
 describe('data merging and splitting', () => {
@@ -87,8 +136,9 @@ describe('data merging and splitting', () => {
             moreNested1: {
                 weather: 'sunny',
                 side: 'up',
-            }
-        }
+            },
+        },
+        tags: ['apple', 'banana'],
     }
     let entry2 = {
         baz: 'quux',
@@ -99,6 +149,7 @@ describe('data merging and splitting', () => {
             someFloat: 3.14,
             confusing: 'quux',
         },
+        tugs: [true, false],
     }
 
     let mergedData = mergeNamespacedData({
@@ -112,10 +163,12 @@ describe('data merging and splitting', () => {
             'namespace1/nested1.someNumber': 2,
             'namespace1/nested1.moreNested1.weather': 'sunny',
             'namespace1/nested1.moreNested1.side': 'up',
+            'namespace1/tags': ['apple', 'banana'],
             'namespace2/baz': 'quux',
             'namespace2/nested1.confusing': 'name',
             'namespace2/nested2.someFloat': 3.14,
             'namespace2/nested2.confusing': 'quux',
+            'namespace2/tugs': [true, false],
         })
 
         expect(splitNamespacedData(mergedData)).toMatchObject({

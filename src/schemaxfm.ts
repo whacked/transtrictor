@@ -2,6 +2,9 @@ import { JSONSchema } from "json-schema-ref-parser";
 import { flatten, unflatten } from 'flat'
 
 
+const NAMESPACE_DELIMITER = '/'
+const SUBKEY_DELIMITER = '.'  // same as flat default
+
 export function getSubSchema(scm) {
     let {
         title,
@@ -61,17 +64,57 @@ export function mergeSchemas(...args: Array<any>): JSONSchema {
     }
 }
 
+function _namespacedKey(namespace: string, subkey: string) {
+    return `${namespace}${NAMESPACE_DELIMITER}${subkey}`
+}
 
-const NAMESPACE_DELIMITER = '/'
-const SUBKEY_DELIMITER = '.'  // same as flat default
+export function getFlattenedSchema(schema: JSONSchema): JSONSchema {
+    let out: JSONSchema = {
+        properties: {},
+    }
+    for (const propKey in schema.properties) {
+        let propDef = schema.properties[propKey] as any
+        switch (propDef.type) {
+            case 'object':
+                let subSchema = getFlattenedSchema(propDef)
+                for (const subPropKey in subSchema.properties) {
+                    let subKey = `${propKey}${SUBKEY_DELIMITER}${subPropKey}`
+                    out.properties[subKey] = subSchema.properties[subPropKey]
+                }
+                break
+            default:
+                out.properties[propKey] = propDef
+        }
+    }
+
+    return out
+}
+
+export function getFlattenedNamespacedSchema(...args: Array<any>): JSONSchema {
+    let out = {
+        properties: {},
+    }
+    let mergedSchema = mergeSchemas(...args)
+    for (const namespace in mergedSchema.properties) {
+        let flattenedSubSchema = getFlattenedSchema(mergedSchema.properties[namespace] as any)
+        for (const subKey in flattenedSubSchema.properties) {
+            let namespacedKey = _namespacedKey(namespace, subKey)
+            out.properties[namespacedKey] = flattenedSubSchema.properties[subKey]
+        }
+    }
+    return out
+}
 
 export function mergeNamespacedData(namedMergeEntries: Record<string, any>) {
     let out = {}
     for (const namespace in namedMergeEntries) {
         let subData = namedMergeEntries[namespace]
-        let flattenedSubData = flatten(subData, { delimiter: SUBKEY_DELIMITER })
+        let flattenedSubData = flatten(subData, {
+            delimiter: SUBKEY_DELIMITER,
+            safe: true,
+        })
         for (const key in flattenedSubData) {
-            let namespacedKey = `${namespace}${NAMESPACE_DELIMITER}${key}`
+            let namespacedKey = _namespacedKey(namespace, key)
             out[namespacedKey] = flattenedSubData[key]
         }
     }
@@ -90,7 +133,10 @@ export function splitNamespacedData(namespacedData: any) {
 
     for (const namespace in out) {
         let flattenedData = out[namespace]
-        out[namespace] = unflatten(flattenedData, { delimiter: SUBKEY_DELIMITER })
+        out[namespace] = unflatten(flattenedData, {
+            delimiter: SUBKEY_DELIMITER,
+            safe: true,
+        })
     }
     return out
 }
