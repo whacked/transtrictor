@@ -1,5 +1,7 @@
 import { JSONSchema } from "json-schema-ref-parser";
 import { flatten, unflatten } from 'flat'
+import Ajv, { ValidateFunction } from 'ajv';
+import { bailIfValidationError } from "./transformer";
 
 
 const NAMESPACE_DELIMITER = '/'
@@ -139,4 +141,47 @@ export function splitNamespacedData(namespacedData: any) {
         })
     }
     return out
+}
+
+export abstract class InterfaceWithSchema<T> {
+    validator: ValidateFunction
+    flattenedSchema: JSONSchema
+
+    constructor(public readonly schema: any) {
+        const ajv = new Ajv()
+        this.validator = ajv.compile(this.schema)
+        this.flattenedSchema = getFlattenedSchema(this.schema)
+    }
+
+    setAttributesInPlace(source: T, mutationTarget: any, namespacePrefix: string = null) {
+        this.validator(source)
+        bailIfValidationError(this.validator, 'source attributes failed to validate')
+
+        let result = {}
+
+        let flattenedSource = flatten(source, {
+            delimiter: SUBKEY_DELIMITER,
+            safe: true,
+        })
+
+        for (const flattenedKey in this.flattenedSchema.properties) {
+            result[flattenedKey] = flattenedSource[flattenedKey]
+        }
+
+        this.validator(result)
+        bailIfValidationError(this.validator, 'ouput failed to validate')
+        if (namespacePrefix != null) {
+            for (const key in result) {
+                mutationTarget[_namespacedKey(namespacePrefix, key)] = result[key]
+            }
+        } else {
+            Object.assign(mutationTarget, result)
+        }
+    }
+
+    setAttributes(source: T, target: any, namespacePrefix: string = null) {
+        let out = { ...target }
+        this.setAttributesInPlace(source, out, namespacePrefix)
+        return out
+    }
 }
