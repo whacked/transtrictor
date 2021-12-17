@@ -1,6 +1,7 @@
-import { getFlattenedNamespacedSchema, getFlattenedSchema, getSubSchema, mergeNamespacedData, mergeSchemas, splitNamespacedData } from '../src/schemaxfm'
+import { getFlattenedNamespacedSchema, getFlattenedSchema, getSubSchema, InterfaceWithSchema, mergeNamespacedData, mergeSchemas, splitNamespacedData } from '../src/schemaxfm'
 import JsonSchemaRecord from '../src/autogen/schemas/JsonSchemaRecord.schema.json'
 import CacheableInputSource from '../src/autogen/schemas/CacheableInputSource.schema.json'
+import { CacheableInputSourceSchema as ICacheableInputSource } from '../src/autogen/interfaces/CacheableInputSource'
 import CacheableDataResult from '../src/autogen/schemas/CacheableDataResult.schema.json'
 
 
@@ -174,6 +175,33 @@ describe('data merging and splitting', () => {
         expect(splitNamespacedData(mergedData)).toMatchObject({
             namespace1: entry1,
             namespace2: entry2,
+        })
+    })
+})
+
+describe('schema reification, validation, hydration', () => {
+    test('test InterfaceWithSchema setAttributes', () => {
+        class MySchemafied extends InterfaceWithSchema<ICacheableInputSource> { }
+        let mything = new MySchemafied(CacheableInputSource)
+        let updated = mything.setAttributes({
+            id: 57,
+            sha256: 'asdfasdf',
+            size: 123,
+            sourcePath: '/dev/null',
+            updatedAt: '2021-12-17',
+            owner_id: 99,
+        }, {
+            noTouchMe: 'testValue'
+        }, 'FoodBar')
+
+        expect(updated).toMatchObject({
+            'FoodBar/id': 57,
+            'FoodBar/sha256': 'asdfasdf',
+            'FoodBar/size': 123,
+            'FoodBar/sourcePath': '/dev/null',
+            'FoodBar/updatedAt': '2021-12-17',
+            'FoodBar/owner_id': 99,
+            noTouchMe: 'testValue',
         })
     })
 })
