@@ -22,5 +22,5 @@ $(JSON_SCHEMAS_DIRECTORY)/%.json: $(JSONNET_SCHEMAS_DIRECTORY)/%.jsonnet
 $(TS_INTERFACES_DIRECTORY)/%.ts: $(JSON_SCHEMAS_DIRECTORY)/%.schema.json
 	json2ts $< | tee $@
 
-src/autogen/databaseJoinSpec.json: generators/databaseJoinSpec.jsonnet
-	jsonnet $< | tee $@
+src/autogen/databaseJoinSpec.json: $(wildcard generators/databaseJoinSpec.jsonnet)
+	if [ "x$<" != "x" ]; then jsonnet $< | tee $@; else echo "no database join spec"; fi
