@@ -2,8 +2,13 @@ import $RefParser from '@apidevtools/json-schema-ref-parser';
 import { Jsonnet } from '@hanazuki/node-jsonnet';
 import Ajv, { ErrorObject } from 'ajv';
 import {
-    IDataTransformer, IWrappedDataContext
+    IDataTransformer,
+    IWrappedDataContext,
+    loadTransformerFile,
+    unwrapTransformationContext,
+    wrapTransformationContext,
 } from './transformer';
+import { slurp } from './util';
 
 
 function preprocessJsonSchema_BANG(jsonSchemaObject: object) {
@@ -129,4 +134,58 @@ export class JS {
             properties: data,
         })
     }
+}
+
+
+// WARNING this overlaps a lot with transformer.applyValidatedTransform
+export async function makeReusableTransformerWithValidation<InputInterface, OutputInterface>(
+    inputDataSchemaPath: string,
+    transformerPath: string,
+    outputDataSchemaPath: string,
+) {
+    let inputDataSchemaSource = slurp(inputDataSchemaPath)
+    let inputDataSchema = await renderJsonnet(inputDataSchemaSource)
+
+    let transformer = loadTransformerFile(transformerPath)
+
+    let outputDataSchemaSource = slurp(outputDataSchemaPath)
+    let outputDataSchema = await renderJsonnet(outputDataSchemaSource)
+
+    async function runTransformerWithValidation(inputData: InputInterface): Promise<OutputInterface> {
+        let inputValidationResult = await validateDataWithSchema(inputData as any, inputDataSchema)
+        if (!inputValidationResult.isValid) {
+            console.error(inputValidationResult.errors)
+            throw new Error('input data failed schema validation')
+        }
+
+        let transformedData = await transformer.transform(wrapTransformationContext(inputData)).then((transformedData) => {
+            console.log('TRANS', inputData)
+            return unwrapTransformationContext(transformedData)
+        })
+
+        let outputValidationResult = await validateDataWithSchema(transformedData, outputDataSchema)
+        if (!outputValidationResult.isValid) {
+            console.error(outputValidationResult.errors)
+            throw new Error('output data failed schema validation')
+        }
+
+        return transformedData as OutputInterface
+    }
+
+    return runTransformerWithValidation
+}
+
+export async function runTransformerWithValidation<InputInterface, OutputInterface>(
+    inputData: InputInterface,
+    inputDataSchemaPath: string,
+    transformerPath: string,
+    outputDataSchemaPath: string,
+): Promise<OutputInterface> {
+    return makeReusableTransformerWithValidation<InputInterface, OutputInterface>(
+        inputDataSchemaPath,
+        transformerPath,
+        outputDataSchemaPath,
+    ).then((transformProcessor) => {
+        return transformProcessor(inputData)
+    })
 }
