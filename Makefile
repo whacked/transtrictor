@@ -10,6 +10,7 @@ $(info $$JSON_SCHEMAS_FILES is [${JSON_SCHEMAS_FILES}])
 $(info $$TS_INTERFACES_FILES is [${TS_INTERFACES_FILES}])
 
 
+# autogen schemas and interfaces
 autogens: json-schemas ts-interfaces src/autogen/databaseJoinSpec.json
 
 json-schemas: $(JSON_SCHEMAS_FILES)
