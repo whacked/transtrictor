@@ -1,10 +1,20 @@
 { pkgs ? import <nixpkgs> {} }:
-pkgs.mkShell {
+
+let
+  nixShortcuts = (builtins.fetchurl {
+    url = "https://raw.githubusercontent.com/whacked/setup/2d55546118ec3a57bdfda1861458ab8bce8c9c38/bash/nix_shortcuts.sh";
+    sha256 = "11h3dipdrd2ym4ar59q3fligdmqhb5zzbbhnymi9vjdsgcs565iw";
+  });
+in pkgs.mkShell {
   buildInputs = [
     pkgs.gnumake
     pkgs.go
     pkgs.jsonnet
     pkgs.yarn
+  ];
+
+  nativeBuildInputs = [
+    nixShortcuts
   ];
 
   shellHook = ''
@@ -25,6 +35,10 @@ pkgs.mkShell {
     }
 
     alias run-tests='jest'
-    alias run-webserver='parcel app/index.html'
+    alias start-front='parcel app/index.html'
+    alias start-back='ts-node parsers/multi.ts'
+    echo -e "\033[0;34m  generate-schema <some-data.json> to auto-generate a json schema \033[0m"
+
+    echo-shortcuts ${__curPos.file}
   '';
 }
