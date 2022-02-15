@@ -52,7 +52,7 @@
   "main": "dist/src",
   "types": "dist/src",
   "files": [
-    "dist"
+    "/dist"
   ],
   "scripts": {
     "prepublish": "tsc",
