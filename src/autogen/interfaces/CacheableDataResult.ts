@@ -16,7 +16,7 @@ export interface CacheableDataResultSchema {
   /**
    * parent data source by metadata, if applicable
    */
-  CacheableInputSource_id?: number;
+  CacheableInputSource_id: number;
   /**
    * describing/validating schema, if applicable
    */
