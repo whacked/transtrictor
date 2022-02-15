@@ -1,7 +1,16 @@
 {
     "compilerOptions": {
+        "module": "commonjs",
+        "target": "ES2015",
+        "declarationMap": true,
         "esModuleInterop": true,
         "resolveJsonModule": true,
+        "outDir": "./dist",
+        "skipLibCheck": true,
+        "declaration": true,
         "jsx": "react"
-    }
+    },
+    "include": [
+        "src/**/*"
+    ]
 }
