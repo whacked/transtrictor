@@ -1,5 +1,5 @@
 {
-  "name": "transcrictor",
+  "name": "transtrictor",
   "version": "0.0.1",
   "dependencies": {
     "@apidevtools/json-schema-ref-parser": "^9.0.9",
