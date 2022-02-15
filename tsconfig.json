@@ -1,9 +1,10 @@
 {
     "compilerOptions": {
         "target": "es6",
-        "module": "commonjs",
+        "module": "es2020",
         "outDir": "dist",
         "esModuleInterop": true,
+        "moduleResolution": "node",
         "resolveJsonModule": true,
         "skipLibCheck": true,
         "jsx": "react"
