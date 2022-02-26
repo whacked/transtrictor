@@ -1,0 +1,31 @@
+{
+   "$defs": {
+      "FileInfo": {
+         "properties": {
+            "fileSha256": {
+               "type": "string"
+            },
+            "filepath": {
+               "type": "string"
+            },
+            "mtime": {
+               "description": "milliseconds",
+               "type": "number"
+            },
+            "name": {
+               "type": "string"
+            },
+            "size": {
+               "type": "number"
+            }
+         },
+         "required": [
+            "filepath",
+            "size",
+            "mtime"
+         ],
+         "type": "object"
+      }
+   },
+   "version": "2022-02-26.1"
+}

@@ -1,0 +1,82 @@
+{
+   "properties": {
+      "accessControlPolicy": {
+         "type": "string"
+      },
+      "applicationVersion": {
+         "type": [
+            "string",
+            "number"
+         ]
+      },
+      "batch": {
+         "type": [
+            "string"
+         ]
+      },
+      "createdAt": {
+         "type": [
+            "string",
+            "number"
+         ]
+      },
+      "creator": {
+         "type": [
+            "string"
+         ]
+      },
+      "data": {
+         "type": { }
+      },
+      "device": {
+         "type": "string"
+      },
+      "fingerprint": {
+         "type": "string"
+      },
+      "id": {
+         "type": [
+            "string",
+            "number"
+         ]
+      },
+      "isPreprocessed": {
+         "type": "boolean"
+      },
+      "name": {
+         "type": "string"
+      },
+      "project": {
+         "type": [
+            "string"
+         ]
+      },
+      "protocolVersion": {
+         "type": [
+            "string",
+            "number"
+         ]
+      },
+      "schemaName": {
+         "type": "string"
+      },
+      "schemaUrl": {
+         "type": "string"
+      },
+      "schemaVersion": {
+         "type": [
+            "string",
+            "number"
+         ]
+      }
+   },
+   "required": [
+      "data",
+      "protocolVersion",
+      "schemaName",
+      "schemaVersion"
+   ],
+   "title": "SchemaTaggedPayload",
+   "type": "object",
+   "version": "2022-02-26.1"
+}
