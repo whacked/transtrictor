@@ -137,12 +137,13 @@ export class JS {
 }
 
 
-// WARNING this overlaps a lot with transformer.applyValidatedTransform
+export type AsyncInputOutputTransformerFunction<InputInterface, OutputInterface> = (inputData: InputInterface) => Promise<OutputInterface>
+// NOTE: this is basically a reusable version of transformer.applyValidatedTransform
 export async function makeReusableTransformerWithValidation<InputInterface, OutputInterface>(
     inputDataSchemaPath: string,
     transformerPath: string,
     outputDataSchemaPath: string,
-) {
+): Promise<AsyncInputOutputTransformerFunction<InputInterface, OutputInterface>> {
     let inputDataSchemaSource = slurp(inputDataSchemaPath)
     let inputDataSchema = await renderJsonnet(inputDataSchemaSource)
 
