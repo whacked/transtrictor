@@ -107,6 +107,17 @@ export function getFlattenedNamespacedSchema(...args: Array<any>): JSONSchema {
     return out
 }
 
+export function toNamespacedFlattenedData(namespace: string, data: Record<string, any>) {
+    return Object.fromEntries(Object.entries(
+        flatten(data, {
+            delimiter: SUBKEY_DELIMITER,
+            safe: true,
+        })
+    ).map(([key, val]) => {
+        return [_namespacedKey(namespace, key), val]
+    }))
+}
+
 export function mergeNamespacedData(namedMergeEntries: Record<string, any>) {
     let out = {}
     for (const namespace in namedMergeEntries) {

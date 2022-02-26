@@ -6,10 +6,14 @@ import * as col from 'colorette';
 import fs from 'fs'
 import { last } from 'lodash';
 import { morphism } from 'morphism'
+import { JSONSchema } from '@apidevtools/json-schema-ref-parser';
 
-export interface IWrappedDataContext {
-    input: Object;
-    output?: Object;
+export interface IWrappedDataContext<
+    InputInterface = Object,
+    OutputInterface = Object,
+    > {
+    input: InputInterface;
+    output?: OutputInterface;
     [key: string]: Object;
 }
 
@@ -114,11 +118,11 @@ export enum TransformerLanguage {
     Morphism = 'morphism',
 }
 
-export interface IDataTransformer {
-    transform: (input: IWrappedDataContext) => Promise<IWrappedDataContext>
+export interface IDataTransformer<InputInterface = any, OutputInterface = any> {
+    transform: (input: IWrappedDataContext<InputInterface, OutputInterface>) => Promise<IWrappedDataContext<InputInterface, OutputInterface>>
 }
 
-export abstract class Transformer implements IDataTransformer {
+export abstract class Transformer<InputInterface = any, OutputInterface = any> implements IDataTransformer<InputInterface, OutputInterface> {
     language: TransformerLanguage;
     sourceCode: string;
     transformerFunction: (inputData: IWrappedDataContext, sourceCode: string) => any;
@@ -204,7 +208,11 @@ export function runValidator(validatorSchema: string | object, targetData: Objec
     return validator
 }
 
-export async function applyValidatedTransform(inputData, inputSchema, outputSchema, transformer: Transformer) {
+export async function applyValidatedTransform<InputInterface, OutputInterface>(
+    inputData: IWrappedDataContext<InputInterface, OutputInterface>,
+    inputSchema: JSONSchema,
+    outputSchema: JSONSchema,
+    transformer: Transformer<InputInterface, OutputInterface>) {
     // note this no longer works with a cfData or cfData.data input as-is because
     // - the schemas validate the "data" object
     // - the transformers expect the full data object (.data, .config, .username, .version, etc)
