@@ -1,7 +1,5 @@
 import { SchemaTaggedPayload } from "../autogen/interfaces/anthology/SchemaTaggedPayload";
 import { AsyncInputOutputTransformerFunction } from "../jsvg-lib";
-import { toNamespacedFlattenedData } from "../schemaxfm";
-
 
 
 const CURRENT_PROTOCOL_VERSION = '2022-02-26.1'
