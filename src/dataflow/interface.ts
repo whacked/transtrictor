@@ -17,10 +17,10 @@ export function toSchemaTaggedPayload(
     }
 }
 
-export function makeSchemaTaggedPayloadTransformerFunction(
+export function makeSchemaTaggedPayloadTransformerFunction<T>(
     schemaName: string, schemaVersion: string | number,
-): AsyncInputOutputTransformerFunction<any, SchemaTaggedPayload> {
-    return async function runTransformerWithValidation(inputData: any): Promise<SchemaTaggedPayload> {
+): AsyncInputOutputTransformerFunction<T, SchemaTaggedPayload> {
+    return async function runTransformerWithValidation(inputData: T): Promise<SchemaTaggedPayload> {
         return toSchemaTaggedPayload(schemaName, schemaVersion, inputData)
     }
 }

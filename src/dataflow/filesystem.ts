@@ -18,6 +18,7 @@ export function getFileStats(filePath: string): FileInfo {
 export async function getDirectoryFileStats(baseDir: string): Promise<Array<FileInfo>> {
     return fastGlob(['**/*'], {
         cwd: baseDir,
+        absolute: true,
     }).then((matches) => {
         return matches.map((filePath) => {
             return {
@@ -29,7 +30,7 @@ export async function getDirectoryFileStats(baseDir: string): Promise<Array<File
 }
 
 export async function getDirectoryFileStatsAsTaggedPayloads(baseDir: string): Promise<Array<SchemaTaggedPayload>> {
-    let doTransform = makeSchemaTaggedPayloadTransformerFunction(
+    let doTransform = makeSchemaTaggedPayloadTransformerFunction<FileInfo>(
         'FileInfo', '2022-02-26.1')
 
     return getDirectoryFileStats(baseDir).then((matches) => {
