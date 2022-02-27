@@ -1,14 +1,14 @@
-import { SchemaTaggedPayload } from "../autogen/interfaces/anthology/SchemaTaggedPayload";
+import { TypedSchemaTaggedPayload } from "../autogen/interfaces/anthology/SchemaTaggedPayload";
 import { AsyncInputOutputTransformerFunction } from "../jsvg-lib";
 
 
 const CURRENT_PROTOCOL_VERSION = '2022-02-26.1'
 
-export function toSchemaTaggedPayload(
+export function toSchemaTaggedPayload<TypeOrInputInterface>(
     schemaName: string,
     schemaVersion: string | number,
-    payload: Record<string, any>,
-): SchemaTaggedPayload {
+    payload: TypeOrInputInterface,
+): TypedSchemaTaggedPayload<TypeOrInputInterface> {
     return {
         schemaName,
         schemaVersion,
@@ -17,23 +17,25 @@ export function toSchemaTaggedPayload(
     }
 }
 
-export function makeSchemaTaggedPayloadTransformerFunction<T>(
+export function makeSchemaTaggedPayloadTransformerFunction<InputInterface>(
     schemaName: string, schemaVersion: string | number,
-): AsyncInputOutputTransformerFunction<T, SchemaTaggedPayload> {
-    return async function runTransformerWithValidation(inputData: T): Promise<SchemaTaggedPayload> {
+): AsyncInputOutputTransformerFunction<InputInterface, TypedSchemaTaggedPayload<InputInterface>> {
+    return async function runTransformerWithValidation(inputData: InputInterface): Promise<TypedSchemaTaggedPayload<InputInterface>> {
         return toSchemaTaggedPayload(schemaName, schemaVersion, inputData)
     }
 }
 
-export class PayloadConformer<OutputInterface> {
+// this does nothing but class-ifies transformerWithValidation
+// unclear whether truly useful; consider removal
+export class PayloadConformer<InputInterface, OutputInterface> {
     // build the input with makeReusableTransformerWithValidation
     constructor(public readonly transformerWithValidation: AsyncInputOutputTransformerFunction<
-        SchemaTaggedPayload, OutputInterface
+        TypedSchemaTaggedPayload<InputInterface>, OutputInterface
     >) {
 
     }
 
-    async conform(payload: SchemaTaggedPayload): Promise<OutputInterface> {
+    async conform(payload: TypedSchemaTaggedPayload<InputInterface>): Promise<OutputInterface> {
         return this.transformerWithValidation(payload)
     }
 }
