@@ -20,7 +20,13 @@ $(call print_var,TS_INTERFACES_FILES)
 
 
 # autogen schemas and interfaces
-autogens: json-schemas ts-interfaces src/autogen/databaseJoinSpec.json
+autogens: json-schemas ts-interfaces schema-tagged-payload-interface src/autogen/databaseJoinSpec.json
+
+schema-tagged-payload-interface: $(TS_INTERFACES_DIRECTORY)/anthology/SchemaTaggedPayload.ts
+
+$(TS_INTERFACES_DIRECTORY)/anthology/SchemaTaggedPayload.ts: $(JSON_SCHEMAS_DIRECTORY)/anthology/SchemaTaggedPayload.schema.json
+	json2ts $< | tee $@
+	echo -e 'export interface TypedSchemaTaggedPayload<T> extends SchemaTaggedPayload { data: T }' | tee -a $@
 
 json-schemas: $(JSON_SCHEMAS_FILES)
 

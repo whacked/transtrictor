@@ -11,9 +11,7 @@ export interface SchemaTaggedPayload {
   batch?: string;
   createdAt?: string | number;
   creator?: string;
-  data: {
-    [k: string]: unknown;
-  };
+  data: any;
   device?: string;
   fingerprint?: string;
   id?: string | number;
@@ -26,3 +24,4 @@ export interface SchemaTaggedPayload {
   schemaVersion: string | number;
   [k: string]: unknown;
 }
+export interface TypedSchemaTaggedPayload<T> extends SchemaTaggedPayload { data: T }

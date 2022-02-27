@@ -5,6 +5,7 @@
   required: ['data', 'protocolVersion', 'schemaName', 'schemaVersion'],
   properties: {
     data: {
+      tsType: 'any',
       type: {},  // any
     },
 

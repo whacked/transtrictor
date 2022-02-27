@@ -26,6 +26,7 @@
          ]
       },
       "data": {
+         "tsType": "any",
          "type": { }
       },
       "device": {
