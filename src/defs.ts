@@ -1,4 +1,5 @@
 export const SCHEMA_TABLE_NAME = 'schemas'
+export const CURRENT_PROTOCOL_VERSION = '2022-02-26.1'
 
 export interface SchemaStatistic {
     firstAppearedAt: any,

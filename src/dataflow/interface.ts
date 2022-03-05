@@ -1,8 +1,7 @@
 import { TypedSchemaTaggedPayload } from "../autogen/interfaces/anthology/SchemaTaggedPayload";
+import { CURRENT_PROTOCOL_VERSION } from "../defs";
 import { AsyncInputOutputTransformerFunction } from "../jsvg-lib";
 
-
-const CURRENT_PROTOCOL_VERSION = '2022-02-26.1'
 
 export function toSchemaTaggedPayload<TypeOrInputInterface>(
     schemaName: string,
