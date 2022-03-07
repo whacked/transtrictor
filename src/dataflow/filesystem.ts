@@ -1,8 +1,8 @@
 import fastGlob from 'fast-glob'
 import fs from "fs"
 import path from "path"
-import { FileInfo } from '../autogen/interfaces/anthology/FileSystem/FileInfo'
-import { TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/SchemaTaggedPayload'
+import { FileInfo } from '../autogen/interfaces/anthology/2022/02/26/FileInfo'
+import { TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/02/26/SchemaTaggedPayload'
 import { makeSchemaTaggedPayloadTransformerFunction } from "./interface"
 
 

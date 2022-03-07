@@ -6,6 +6,7 @@ JSONNET_SCHEMAS_FILES     := $(wildcard \
 							 $(JSONNET_SCHEMAS_DIRECTORY)/*.jsonnet \
 							 $(JSONNET_SCHEMAS_DIRECTORY)/*/*.jsonnet \
 							 $(JSONNET_SCHEMAS_DIRECTORY)/*/*/*.jsonnet \
+							 $(JSONNET_SCHEMAS_DIRECTORY)/anthology/*/*/*/*.jsonnet \
 							 )
 JSON_SCHEMAS_DIRECTORY    := src/autogen/schemas
 JSON_SCHEMAS_FILES        := $(patsubst $(JSONNET_SCHEMAS_DIRECTORY)/%.jsonnet,$(JSON_SCHEMAS_DIRECTORY)/%.json,$(JSONNET_SCHEMAS_FILES))
@@ -22,9 +23,9 @@ $(call print_var,TS_INTERFACES_FILES)
 # autogen schemas and interfaces
 autogens: json-schemas ts-interfaces schema-tagged-payload-interface src/autogen/databaseJoinSpec.json
 
-schema-tagged-payload-interface: $(TS_INTERFACES_DIRECTORY)/anthology/SchemaTaggedPayload.ts
+schema-tagged-payload-interface: $(TS_INTERFACES_DIRECTORY)/anthology/2022/02/26/SchemaTaggedPayload.ts
 
-$(TS_INTERFACES_DIRECTORY)/anthology/SchemaTaggedPayload.ts: $(JSON_SCHEMAS_DIRECTORY)/anthology/SchemaTaggedPayload.schema.json
+$(TS_INTERFACES_DIRECTORY)/anthology/2022/02/26/SchemaTaggedPayload.ts: $(JSON_SCHEMAS_DIRECTORY)/anthology/2022/02/26/SchemaTaggedPayload.schema.json
 	json2ts $< | tee $@
 	echo -e 'export interface TypedSchemaTaggedPayload<T> extends SchemaTaggedPayload { data: T }' | tee -a $@
 
