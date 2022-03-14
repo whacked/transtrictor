@@ -154,6 +154,11 @@ export function splitNamespacedData(namespacedData: any) {
     return out
 }
 
+export function verifyDataMatchesSchema<T>(data: any, jsonSchema: any): T {  // convenience function to validate and type-cast to T
+    bailIfValidationError(jsonSchema, 'input data did not match schema')
+    return data as T
+}
+
 export abstract class InterfaceWithSchema<T> {
     validator: ValidateFunction
     flattenedSchema: JSONSchema
