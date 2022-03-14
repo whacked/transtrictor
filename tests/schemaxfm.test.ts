@@ -1,8 +1,37 @@
-import { getFlattenedNamespacedSchema, getFlattenedSchema, getSubSchema, InterfaceWithSchema, mergeNamespacedData, mergeSchemas, splitNamespacedData } from '../src/schemaxfm'
+import {
+    getFlattenedNamespacedSchema,
+    getFlattenedSchema,
+    getSubSchema,
+    InterfaceWithSchema,
+    mergeNamespacedData,
+    mergeSchemas,
+    splitNamespacedData,
+    verifyDataMatchesSchema,
+} from '../src/schemaxfm'
 import JsonSchemaRecord from '../src/autogen/schemas/JsonSchemaRecord.schema.json'
 import CacheableInputSource from '../src/autogen/schemas/CacheableInputSource.schema.json'
 import { CacheableInputSourceSchema as ICacheableInputSource } from '../src/autogen/interfaces/CacheableInputSource'
 import CacheableDataResult from '../src/autogen/schemas/CacheableDataResult.schema.json'
+
+
+describe('utility', () => {
+    interface MyData {
+        whatever: string
+    }
+    let myUntypedInput = {
+        whatever: 'pizza pie',
+    }
+    let mySchema = {
+        type: 'object',
+        properties: {
+            whatever: {
+                type: 'string',
+            },
+        },
+    }
+    let validated = verifyDataMatchesSchema<MyData>(myUntypedInput, mySchema)
+    expect(myUntypedInput).toEqual(validated)
+})
 
 
 describe('schema merging', () => {
