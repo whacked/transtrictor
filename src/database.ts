@@ -18,9 +18,13 @@ import { unflatten } from 'flat'
 import { validateDataWithSchema } from './jsvg-lib'
 import { slurp } from './util'
 import { Transformer, unwrapTransformationContext, wrapTransformationContext } from './transformer'
+import fastGlob from 'fast-glob'
 
 
 const AUTOGEN_SCHEMAS_DIRECTORY = path.join(path.dirname(__filename), 'autogen/schemas')
+if (!fs.existsSync(AUTOGEN_SCHEMAS_DIRECTORY)) {
+    throw new Error('autogen schemas directory does not exist; expected it to be in ' + AUTOGEN_SCHEMAS_DIRECTORY)
+}
 
 export const TableMapping = {
     CacheableInputSource,
@@ -341,9 +345,12 @@ export function loadEnvDefinedDatabase(databaseName?: string): KnexLib.Knex {
 }
 
 export function getDatabaseModelsJsonSchemas() {
-    return fs.readdirSync(AUTOGEN_SCHEMAS_DIRECTORY).map((schemaFileName) => {
-        console.log(`processing ${col.blue(schemaFileName)}...`)
-        let schemaData = JSON.parse(slurp(path.join(AUTOGEN_SCHEMAS_DIRECTORY, schemaFileName))) as JSONSchema
+    // NOTE: there's a new "anthology" directory in autogen schema
+    // which is not processed here
+    return fastGlob.sync([path.join(`${AUTOGEN_SCHEMAS_DIRECTORY}/*.json`)]).map((schemaFilePath) => {
+        console.log(`processing ${col.blue(schemaFilePath)}...`)
+        let schemaFileName = path.basename(schemaFilePath)
+        let schemaData = JSON.parse(slurp(schemaFilePath)) as JSONSchema
         if (schemaData.title == null) {
             schemaData.title = schemaFileName.split('.')[0]
         }
