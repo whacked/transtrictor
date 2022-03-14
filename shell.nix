@@ -15,6 +15,7 @@ in pkgs.mkShell {
 
   nativeBuildInputs = [
     nixShortcuts
+    ~/setup/bash/shell_shortcuts.sh
   ];
 
   shellHook = ''
