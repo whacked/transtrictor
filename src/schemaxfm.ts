@@ -2,6 +2,7 @@ import { JSONSchema } from "json-schema-ref-parser";
 import { flatten, unflatten } from 'flat'
 import Ajv, { ValidateFunction } from 'ajv';
 import { bailIfValidationError } from "./transformer";
+import { JSONSchema7 } from "json-schema";
 
 
 const NAMESPACE_DELIMITER = '/'
@@ -154,8 +155,11 @@ export function splitNamespacedData(namespacedData: any) {
     return out
 }
 
-export function verifyDataMatchesSchema<T>(data: any, jsonSchema: any): T {  // convenience function to validate and type-cast to T
-    bailIfValidationError(jsonSchema, 'input data did not match schema')
+export function verifyDataMatchesSchema<T>(data: any, jsonSchema: JSONSchema7): T {  // convenience function to validate and type-cast to T
+    const ajv = new Ajv()
+    let validator = ajv.compile(jsonSchema)
+    validator(data)
+    bailIfValidationError(validator, 'verifyDataMatchesSchema(): data does not match schema')
     return data as T
 }
 
