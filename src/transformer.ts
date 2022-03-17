@@ -199,7 +199,7 @@ export function makeTransformer(language: TransformerLanguage, content: string):
 }
 
 export function runValidator(validatorSchema: string | object, targetData: Object, shouldBailIfError: boolean = false, bailWithMessage: string = null) {
-    const ajv = new Ajv()
+    const ajv = new Ajv({ strict: false })
     let validator = ajv.compile(typeof validatorSchema == "object" ? validatorSchema : JSON.parse(<string>validatorSchema))
     validator(targetData)
     if (shouldBailIfError) {
@@ -216,7 +216,7 @@ export async function applyValidatedTransform<InputInterface, OutputInterface>(
     // note this no longer works with a cfData or cfData.data input as-is because
     // - the schemas validate the "data" object
     // - the transformers expect the full data object (.data, .config, .username, .version, etc)
-    const ajv = new Ajv()
+    const ajv = new Ajv({ strict: false })
     const inputValidator = runValidator(inputSchema, inputData, true)
     console.info('applying transform with', transformer)
     const outputData = await transformer.transform(inputData)
