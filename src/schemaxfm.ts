@@ -156,7 +156,7 @@ export function splitNamespacedData(namespacedData: any) {
 }
 
 export function verifyDataMatchesSchema<T>(data: any, jsonSchema: JSONSchema7): T {  // convenience function to validate and type-cast to T
-    const ajv = new Ajv()
+    const ajv = new Ajv({ strict: false })
     let validator = ajv.compile(jsonSchema)
     validator(data)
     bailIfValidationError(validator, `verifyDataMatchesSchema(): data does not match schema: ${JSON.stringify(jsonSchema)}`)
@@ -168,7 +168,7 @@ export abstract class InterfaceWithSchema<T> {
     flattenedSchema: JSONSchema
 
     constructor(public readonly schema: any) {
-        const ajv = new Ajv()
+        const ajv = new Ajv({ strict: false })
         this.validator = ajv.compile(this.schema)
         this.flattenedSchema = getFlattenedSchema(this.schema)
     }
