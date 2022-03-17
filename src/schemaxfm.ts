@@ -159,7 +159,7 @@ export function verifyDataMatchesSchema<T>(data: any, jsonSchema: JSONSchema7): 
     const ajv = new Ajv()
     let validator = ajv.compile(jsonSchema)
     validator(data)
-    bailIfValidationError(validator, 'verifyDataMatchesSchema(): data does not match schema')
+    bailIfValidationError(validator, `verifyDataMatchesSchema(): data does not match schema: ${JSON.stringify(jsonSchema)}`)
     return data as T
 }
 
