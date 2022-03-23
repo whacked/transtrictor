@@ -108,13 +108,15 @@ export const pouchDbConfig = PouchDB.plugin(require('pouchdb-adapter-memory')).d
 let documentCounter = 0
 
 export async function seedDbData(databaseName: string, loadAllDocuments: () => Promise<Array<any>>) {
+    PouchDB.plugin(require('pouchdb-upsert'))
+
     const pdb = new PouchDB(databaseName, {
         adapter: 'memory',
     })
 
     return loadAllDocuments().then((documents: Array<any>) => {
         documents.forEach((doc, index) => {
-            pdb.put({
+            pdb.putIfNotExists({
                 _id: `${++documentCounter}`,
                 ...doc,
             }).catch((err) => {
