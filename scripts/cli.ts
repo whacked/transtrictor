@@ -17,6 +17,8 @@ export interface IYarguments {
     schema?: string,
     transformer?: string,
     postTransformSchema?: string,
+    context?: string,
+    keyedContext?: Array<string>,
 }
 
 let yargOptions: { [key in keyof IYarguments]: any } = {
@@ -46,6 +48,16 @@ let yargOptions: { [key in keyof IYarguments]: any } = {
         alias: 'p',
         type: 'string',
         description: 'path to json(net) json-schema to validate post-transformation output',
+    },
+    context: {
+        alias: 'c',
+        type: 'string',
+        description: 'object that gets added at the ROOT level of the wrapped data for transformation',
+    },
+    keyedContext: {
+        alias: 'k',
+        type: 'array',
+        description: 'triplets of <keyName schemaFilePath dataFilePath> of data that gets added at <keyName> to the ROOT level of the wrapped data for transformation',
     },
 }
 
@@ -86,7 +98,16 @@ export async function cliMain(args: IYarguments): Promise<any> {
     const schemaJsonnetSource = slurp(args.schema)
 
     const postTransformSchemaJsonnetSource = args.postTransformSchema == null ? null : slurp(args.postTransformSchema)
-
+    const keyedContext: Record<string, any> = {}
+    let numKeyContext = args.keyedContext == null ? 0 : args.keyedContext.length
+    for (let i = 0; i < numKeyContext; i += 3) {
+        let contextKey = args.keyedContext[i]
+        let contextSchemaFile = args.keyedContext[i + 1]
+        let dataFilePath = args.keyedContext[i + 2]
+        let keyedContextData = await renderJsonnet(slurp(dataFilePath))
+        let keyedContextSchema = await renderJsonnet(slurp(contextSchemaFile))
+        keyedContext[contextKey] = await validateDataWithSchema(keyedContextData, keyedContextSchema)
+    }
     let runTransform: (input: any) => Promise<any>;
     if (args.transformer == null) {
         runTransform = async (input) => {
@@ -95,22 +116,26 @@ export async function cliMain(args: IYarguments): Promise<any> {
     } else {
         runTransform = async (input: any) => {
             let transformer = loadTransformerFile(args.transformer)
-            return transformer.transform(wrapTransformationContext(input)).then((transformedData) => {
+            return transformer.transform(wrapTransformationContext(
+                input,
+                {
+                    ...keyedContext,
+                    ...(args.context != null ? JSON.parse(args.context) : null)
+                }
+            )).then((transformedData) => {
                 return unwrapTransformationContext(transformedData)
-            }).then((resultData) => {
+            }).then(async (resultData) => {
                 if (postTransformSchemaJsonnetSource == null) {
                     return resultData
                 } else {
-                    return renderJsonnet(postTransformSchemaJsonnetSource).then((resolvedJsonSchema) => {
-                        return validateDataWithSchema(resultData, resolvedJsonSchema)
-                    }).then((result) => {
-                        if (!result.isValid) {
-                            console.error('POST TRANSFORM VALIDATION ERROR', result.errors)
-                            return process.exit(2)
-                        }
+                    let resolvedJsonSchema = await renderJsonnet(postTransformSchemaJsonnetSource)
+                    let validationResult = await validateDataWithSchema(resultData, resolvedJsonSchema)
+                    if (!validationResult.isValid) {
+                        console.error('POST TRANSFORM VALIDATION ERROR', validationResult.errors)
+                        return process.exit(2)
+                    }
 
-                        return result.data
-                    })
+                    return validationResult.data
                 }
             })
         }
