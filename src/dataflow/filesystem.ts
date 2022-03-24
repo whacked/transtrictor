@@ -2,7 +2,7 @@ import fastGlob from 'fast-glob'
 import fs from "fs"
 import path from "path"
 import { FileInfo } from '../autogen/interfaces/anthology/2022/02/26/FileInfo'
-import { TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/02/26/SchemaTaggedPayload'
+import { TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload'
 import { makeSchemaTaggedPayloadTransformerFunction } from "./interface"
 
 
@@ -31,7 +31,7 @@ export async function getDirectoryFileStats(baseDir: string): Promise<Array<File
 
 export async function getDirectoryFileStatsAsTaggedPayloads(baseDir: string): Promise<Array<TypedSchemaTaggedPayload<FileInfo>>> {
     let doTransform = makeSchemaTaggedPayloadTransformerFunction<FileInfo>(
-        'FileInfo', '2022-02-26.1')
+        'FileInfo', '2022-03-25.1')
 
     return getDirectoryFileStats(baseDir).then((matches) => {
         return Promise.all(matches.map((match) => {

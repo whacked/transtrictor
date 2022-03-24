@@ -1,4 +1,4 @@
-import { TypedSchemaTaggedPayload } from "../autogen/interfaces/anthology/2022/02/26/SchemaTaggedPayload";
+import { TypedSchemaTaggedPayload } from "../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload";
 import { CURRENT_PROTOCOL_VERSION } from "../defs";
 import { AsyncInputOutputTransformerFunction } from "../jsvg-lib";
 
