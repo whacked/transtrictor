@@ -12,10 +12,21 @@ import { slurp } from './util';
 
 
 function preprocessJsonSchema_BANG(jsonSchemaObject: object) {
+    /**
+     * WARNING: this causes surprising behavior!
+     * see https://json-schema.org/understanding-json-schema/structuring.html#id
+     * and https://json-schema.org/understanding-json-schema/structuring.html#bundling
+     * for some relevant information on why $id is necessary somewhere;
+     * commit history doens't adequately explain id -> $id but it most likely
+     * involves internal reference/de-referencing.
+     */
     if (typeof jsonSchemaObject !== "object") {
         return
     }
-    if (jsonSchemaObject["id"] != null) {
+    if (jsonSchemaObject["id"] != null
+        && typeof jsonSchemaObject["id"] == 'string'
+        && jsonSchemaObject["id"].startsWith('/')
+    ) {
         jsonSchemaObject["$id"] = jsonSchemaObject["id"]
         delete jsonSchemaObject["id"]
     }
@@ -28,7 +39,13 @@ function preprocessJsonSchema_BANG(jsonSchemaObject: object) {
 export async function renderJsonnet(jsonnetSource: string, shouldDefererence: boolean = true): Promise<object> {
 
     const jsonnet = new Jsonnet()
-    const jsonString = await jsonnet.evaluateSnippet(jsonnetSource)
+    let jsonString: string
+    try {
+        jsonString = await jsonnet.addJpath(process.cwd()).evaluateSnippet(jsonnetSource)
+    } catch (e) {
+        console.error(e)
+        throw e
+    }
     const jsonObject = JSON.parse(jsonString)
     if (shouldDefererence) {
         let dereferenced = await $RefParser.dereference(jsonObject)
@@ -44,22 +61,22 @@ export async function renderJsonnet(jsonnetSource: string, shouldDefererence: bo
 }
 
 
-export interface ValidationResult {
-    data: any
+export interface ValidationResult<TargetType = any> {
+    data: TargetType
     schema: any
     isValid: boolean
     errors: Array<ErrorObject>
 }
 
-export function validateDataWithSchema(data: object, schema: object): Promise<ValidationResult> {
+export function validateDataWithSchema<OutputType = any>(data: any, schema: any): Promise<ValidationResult<OutputType>> {
     const ajv = new Ajv({ strict: false })
-    let result = {
-        data: data,
+    let result: ValidationResult = {
+        data: <OutputType>data,
         schema: schema,
         isValid: ajv.validate(schema, data),
         errors: ajv.errors
     }
-    return Promise.resolve(result)
+    return Promise.resolve(result as ValidationResult)
 }
 
 export class SourceValidationError extends Error { }
@@ -98,11 +115,11 @@ export async function schema2SchemaTransform(
     return s2s.transformDataWithTransformer(sourceData, transformer)
 }
 
-export async function validateJsonnetWithSchema(targetDataJsonnet: string, schemaJsonnet: string): Promise<ValidationResult> {
+export async function validateJsonnetWithSchema<OutputType = any>(targetDataJsonnet: string, schemaJsonnet: string): Promise<ValidationResult<OutputType>> {
     const jsonnet = new Jsonnet()
     return renderJsonnet(
         schemaJsonnet
-    ).then((resolvedJsonSchema) => {
+    ).then(async (resolvedJsonSchema) => {
         // HACK: breaks the validator, so forcibly remove the key
         delete resolvedJsonSchema["$schema"]
         return renderJsonnet(targetDataJsonnet).then((validationTarget) => {
