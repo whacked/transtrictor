@@ -27,7 +27,13 @@
       },
       "data": {
          "tsType": "any",
-         "type": { }
+         "type": [
+            "string",
+            "number",
+            "boolean",
+            "array",
+            "object"
+         ]
       },
       "device": {
          "type": "string"

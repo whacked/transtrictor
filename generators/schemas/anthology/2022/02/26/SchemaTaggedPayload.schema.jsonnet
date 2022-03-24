@@ -6,7 +6,7 @@
   properties: {
     data: {
       tsType: 'any',
-      type: {},  // any
+      type: ['string', 'number', 'boolean', 'array', 'object'],
     },
 
     name: { type: 'string' },
