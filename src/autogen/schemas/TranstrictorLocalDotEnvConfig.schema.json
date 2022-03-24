@@ -1,0 +1,18 @@
+{
+   "description": ".env config for transtrictor local utils (webserver, pouchdb)",
+   "properties": {
+      "API_SERVER_PORT": {
+         "default": 1235,
+         "type": "number"
+      },
+      "POUCHDB_DATABASE_PREFIX": {
+         "description": "use :memory: or remove this item to use in-memory database",
+         "examples": [
+            ":memory:",
+            "/tmp/cache/test-pdb"
+         ],
+         "type": "string"
+      }
+   },
+   "type": "object"
+}

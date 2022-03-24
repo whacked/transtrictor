@@ -51,7 +51,7 @@ export class ValidatedConfig {
         strictnessLevel: ValidationStrictness = ValidationStrictness.WARN_ON_NONCONFORMANCE,
     ) {
         return ValidatedConfig.load<ConfigSchema>(
-            dotenvExpand(config({ path: dotEnvFilePath })), strictnessLevel,
+            dotenvExpand(config({ path: dotEnvFilePath })).parsed, strictnessLevel,
         )
     }
 
