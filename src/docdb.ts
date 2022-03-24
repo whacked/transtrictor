@@ -3,11 +3,31 @@ import * as GenerateSchema from 'generate-schema';
 import { canonicalize } from 'json-canonicalize';
 import { getSha256 } from '../src/database';
 import {
+    Config,
     ExtendedResponse,
     SchemaStatistic,
     SCHEMA_TABLE_NAME,
 } from './defs';
 
+
+export const POUCHDB_ADAPTER_CONFIG = (Config.POUCHDB_DATABASE_PREFIX ?? ':memory:') == ':memory:'
+    ? { adapter: 'memory' }
+    : {
+        prefix: Config.POUCHDB_DATABASE_PREFIX.replace(/\/?$/, '/'),  // TRAILING SPACE MATTERS
+        adapter: 'websql',
+    }
+
+PouchDB.plugin(require('pouchdb-find'))
+PouchDB.plugin(require('pouchdb-upsert'))
+export let PouchDbConfig = null;
+// FIXME reorganize this -- only webserver uses it now
+if (POUCHDB_ADAPTER_CONFIG.adapter == ':memory:') {
+    console.info('IN MEMORY DATABASE')
+    PouchDbConfig = PouchDB.plugin(require('pouchdb-adapter-memory')).defaults({ adapter: 'memory' })
+} else {
+    console.info(`WEBSQL DATABASE at ${POUCHDB_ADAPTER_CONFIG.prefix}`)
+    PouchDbConfig = PouchDB.plugin(require('pouchdb-adapter-node-websql')).defaults({ adapter: 'websql', })
+}
 
 export class SchemaStatisticsLoader {
 
@@ -101,19 +121,13 @@ export class SchemaStatisticsLoader {
     }
 }
 
-export const pouchDbConfig = PouchDB.plugin(require('pouchdb-adapter-memory')).defaults({
-    adapter: 'memory',
-})
-
-let documentCounter = 0
 
 export async function seedDbData(databaseName: string, loadAllDocuments: () => Promise<Array<any>>) {
-    PouchDB.plugin(require('pouchdb-upsert'))
 
-    const pdb = new PouchDB(databaseName, {
-        adapter: 'memory',
-    })
+    const pdb = new PouchDB(databaseName, POUCHDB_ADAPTER_CONFIG)
+    console.log('seeding data...')
 
+    let documentCounter = 0
     return loadAllDocuments().then((documents: Array<any>) => {
         documents.forEach((doc, index) => {
             pdb.putIfNotExists({
