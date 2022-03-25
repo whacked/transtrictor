@@ -1,4 +1,7 @@
 {
+   "parents": [
+      "SchemaTaggedPayload@2022-02-26.1"
+   ],
    "properties": {
       "accessControlPolicy": {
          "type": "string"
@@ -35,6 +38,13 @@
             "object"
          ]
       },
+      "dataChecksum": {
+         "description": "checksum value derived from a serialized representation of the .data attribute; this is logic dependent and is for verification by the same logic",
+         "examples": [
+            "sha256:d7946e0aa58456d44fdc86eb25877d9e8008a98c76c073df526a193da293eae1"
+         ],
+         "type": "string"
+      },
       "device": {
          "type": "string"
       },
@@ -59,6 +69,7 @@
          ]
       },
       "protocolVersion": {
+         "description": "version of the Tagged Payload protocol (this particular protocol is version 2022-03-25.1)",
          "type": [
             "string",
             "number"
@@ -85,5 +96,5 @@
    ],
    "title": "SchemaTaggedPayload",
    "type": "object",
-   "version": "2022-02-26.1"
+   "version": "2022-03-25.1"
 }

@@ -11,11 +11,13 @@ in pkgs.mkShell {
     pkgs.go
     pkgs.jsonnet
     pkgs.yarn
+    # pkgs.deno
   ];
 
   nativeBuildInputs = [
     nixShortcuts
     ~/setup/bash/shell_shortcuts.sh
+    ~/setup/bash/jsonnet_shortcuts.sh
   ];
 
   shellHook = ''
@@ -40,6 +42,61 @@ in pkgs.mkShell {
     alias start-back='ts-node parsers/multi.ts'
     echo -e "\033[0;34m  generate-schema <some-data.json> to auto-generate a json schema \033[0m"
 
+  '' + ''
+    SERVER_ENDPOINT=http://localhost:1235
+    # useful endpoints
+    # $SERVER_ENDPOINT/api/_all_dbs
+    # $SERVER_ENDPOINT/api/<dbname>/_all_docs
+    add-schema-to-server() {
+        if [ $# -ne 1 ]; then
+            echo 'requires:  <path-to-schema>'
+            return
+        fi
+        schema_path=$1
+        jsonnet $schema_path | curl -s -H 'Content-Type: application/json' $SERVER_ENDPOINT/JsonSchemas -d @- | jq
+    }
+
+    add-data-to-server() {
+        if [ $# -ne 2 ]; then
+            echo 'requires:  <schema-name> <path-to-data>'
+            return
+        fi
+        schema_name=$1
+        path_to_data=$2
+        curl -H 'Content-Type: application/json' $SERVER_ENDPOINT/SchemaTaggedPayloads/$schema_name -d@$path_to_data
+    }
+
+    render-transformed-data() {
+        if [ $# -ne 5 ]; then
+            echo 'requires:  <context> <input-data> <input-schema> <transformer> <output-schema>'
+            return
+        fi
+
+        context=$1                # '{"device": "machine1"}'
+        input_data=$2             # path/to/file.json
+        input_schema=$3           # path/to/input.schema.jsonnet
+        transformer=$4            # path/to/transformer.jsonata
+        post_transform_schema=$5  # path/to/output.schema.jsonnet
+
+        ts-node scripts/cli.ts \
+            -c "$context" \
+            -i $input_data \
+            -s $input_schema \
+            -t $transformer \
+            -p $post_transform_schema
+    }
+
+    add-transformed-data-to-server() {
+        if [ $# -ne 6 ]; then
+            echo 'requires:  <schema-name> <context> <input-data> <input-schema> <transformer> <output-schema>'
+            return
+        fi
+
+        schema_name=$1            # MyResultantSchemaName
+        render-transformed-data "$2" "$3" "$4" "$5" "$6" |
+            curl -H 'Content-Type: application/json' $SERVER_ENDPOINT/SchemaTaggedPayloads/$schema_name -d @-
+    }
+  '' + ''
     echo-shortcuts ${__curPos.file}
   '';
 }

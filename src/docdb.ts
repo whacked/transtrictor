@@ -3,15 +3,36 @@ import * as GenerateSchema from 'generate-schema';
 import { canonicalize } from 'json-canonicalize';
 import { getSha256 } from '../src/database';
 import {
+    Config,
     ExtendedResponse,
+    GENERIC_DATASETS_TABLE_NAME,
     SchemaStatistic,
-    SCHEMA_TABLE_NAME,
+    SCHEMAS_TABLE_NAME,
 } from './defs';
 
 
+export const POUCHDB_ADAPTER_CONFIG = (Config.POUCHDB_DATABASE_PREFIX ?? ':memory:') == ':memory:'
+    ? { adapter: 'memory' }
+    : {
+        prefix: Config.POUCHDB_DATABASE_PREFIX.replace(/\/?$/, '/'),  // TRAILING SPACE MATTERS
+        adapter: 'websql',
+    }
+
+export let PouchDbConfig = null;
+// FIXME reorganize this -- only webserver uses it now
+if (POUCHDB_ADAPTER_CONFIG.adapter == ':memory:') {
+    console.info('IN MEMORY DATABASE')
+    PouchDbConfig = PouchDB.plugin(require('pouchdb-adapter-memory')).defaults(POUCHDB_ADAPTER_CONFIG)
+} else {
+    console.info(`WEBSQL DATABASE at ${POUCHDB_ADAPTER_CONFIG.prefix}`)
+    PouchDbConfig = PouchDB.plugin(require('pouchdb-adapter-node-websql')).defaults(POUCHDB_ADAPTER_CONFIG)
+}
+PouchDB.plugin(require('pouchdb-find'))
+PouchDB.plugin(require('pouchdb-upsert'))
+
 export class SchemaStatisticsLoader {
 
-    static readonly DEFAULT_SINGLE_DATABASE_NAME = 'datasets'
+    static readonly DEFAULT_SINGLE_DATABASE_NAME = GENERIC_DATASETS_TABLE_NAME
 
     static _singleton: SchemaStatisticsLoader
 
@@ -19,6 +40,7 @@ export class SchemaStatisticsLoader {
         return SchemaStatisticsLoader._singleton
     }
     static autoLoadSingleDataset(dataRecords: Array<any>, singleDatasetDatabaseName: string = SchemaStatisticsLoader.DEFAULT_SINGLE_DATABASE_NAME) {
+        // SIDE EFFEcT: this auto-seeds the "datasets" database
         if (SchemaStatisticsLoader._singleton != null) {
             console.warn('autoLoadSingleDataset can only be run once')
             return
@@ -95,25 +117,19 @@ export class SchemaStatisticsLoader {
         }, {} as Record<string, SchemaStatistic>)
 
         if (seedRecordsToDatabase != null) {
+            // SIDE EFFECT: this auto-seeds the "schemas" database
             this.seedDbData(seedRecordsToDatabase)
             this.seedDbSchemaData()
         }
     }
 }
 
-export const pouchDbConfig = PouchDB.plugin(require('pouchdb-adapter-memory')).defaults({
-    adapter: 'memory',
-})
-
-let documentCounter = 0
 
 export async function seedDbData(databaseName: string, loadAllDocuments: () => Promise<Array<any>>) {
-    PouchDB.plugin(require('pouchdb-upsert'))
+    const pdb = new PouchDB(databaseName, POUCHDB_ADAPTER_CONFIG)
+    console.log(`seeding data for database "${databaseName}"...`)
 
-    const pdb = new PouchDB(databaseName, {
-        adapter: 'memory',
-    })
-
+    let documentCounter = 0
     return loadAllDocuments().then((documents: Array<any>) => {
         documents.forEach((doc, index) => {
             pdb.putIfNotExists({
@@ -128,5 +144,5 @@ export async function seedDbData(databaseName: string, loadAllDocuments: () => P
 }
 
 export async function seedDbSchemaData(loadAllSchemaDocuments: () => Promise<Array<any>>) {
-    return seedDbData(SCHEMA_TABLE_NAME, loadAllSchemaDocuments)
+    return seedDbData(SCHEMAS_TABLE_NAME, loadAllSchemaDocuments)  // this creates the "schemas" database per SCHEMA_TABLE_NAME
 }
