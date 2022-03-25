@@ -11,6 +11,10 @@
 export interface TranstrictorLocalDotEnvConfigSchema {
   API_SERVER_PORT?: number;
   /**
+   * where the access logs for express-pouchdb should be saved
+   */
+  EXPRESS_POUCHDB_LOG_PATH?: string;
+  /**
    * use :memory: or remove this item to use in-memory database
    */
   POUCHDB_DATABASE_PREFIX?: string;
