@@ -2,7 +2,10 @@ import { TranstrictorLocalDotEnvConfigSchema } from './autogen/interfaces/Transt
 import TranstrictorLocalDotEnvConfigJsonSchema from './autogen/schemas/TranstrictorLocalDotEnvConfig.schema.json'
 import { ValidatedConfig } from './ValidatedConfig'
 
-export const SCHEMA_TABLE_NAME = 'schemas'
+export const GENERIC_DATASETS_TABLE_NAME = 'datasets'
+export const SCHEMAS_TABLE_NAME = 'schemas'
+export const JSON_SCHEMAS_TABLE_NAME = 'JsonSchemas'
+export const SCHEMA_TAGGED_PAYLOADS_TABLE_NAME = 'SchemaTaggedPayloads'
 export const CURRENT_PROTOCOL_VERSION = '2022-03-25.1'
 
 export interface SchemaStatistic {

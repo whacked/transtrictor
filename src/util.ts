@@ -60,4 +60,3 @@ export function monkeyPatchConsole() {
     });
     isPatched = true;
 }
-monkeyPatchConsole()

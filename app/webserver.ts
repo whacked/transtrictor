@@ -14,7 +14,13 @@ import { SchemaTaggedPayload } from '../src/autogen/interfaces/anthology/2022/03
 import Ajv from 'ajv';
 import Draft04Schema from 'json-metaschema/draft-04-schema.json'
 import { getSha256 } from '../src/database';
-import { Config, CURRENT_PROTOCOL_VERSION } from '../src/defs';
+import {
+    Config,
+    JSON_SCHEMAS_TABLE_NAME,
+    SCHEMA_TAGGED_PAYLOADS_TABLE_NAME,
+} from '../src/defs';
+import { monkeyPatchConsole } from '../src/util';
+monkeyPatchConsole()
 
 
 // get all docs in the db:
@@ -26,23 +32,12 @@ import { Config, CURRENT_PROTOCOL_VERSION } from '../src/defs';
 //     }
 // })
 
-let pouchSchemas = new PouchDB('schemas', POUCHDB_ADAPTER_CONFIG)
-let pouchSchemaTaggedPayloads = new PouchDB('SchemaTaggedPayloads', POUCHDB_ADAPTER_CONFIG)
+let pouchSchemas = new PouchDB(JSON_SCHEMAS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
+let pouchSchemaTaggedPayloads = new PouchDB(SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
 
-
-interface IYarguments {
-    database: string,
-}
-
-function FIXME_wrapIntoTaggedSchemaPayload(schemaName: string, schemaVersion: string, payload: any): SchemaTaggedPayload {
-    return {
-        data: payload,
-        dataChecksum: `sha256:${getSha256(JSON.stringify(payload))}`,
-        protocolVersion: CURRENT_PROTOCOL_VERSION,
-        schemaName,
-        schemaVersion,
-        createdAt: Date.now() / 1e3,
-    }
+const POUCHDB_BAD_REQUEST_RESPONSE = {  // this is copied from the error response from posting invalid JSON to express-pouchdb at /api
+    error: "bad_request",
+    reason: "invalid_json",
 }
 
 export const FIXME_SchemaHasTitleAndVersion = {
@@ -80,28 +75,63 @@ function getDraft04SchemaValidator(): Ajv {
     return ajv
 }
 
+// this isn't being used downstream anywhere
+interface IYarguments {
+    database: string,
+}
+
 export function startWebserver(args: IYarguments = null) {
 
-    const ePdb = ExpressPouchDb(PouchDbConfig, {
-        logPath: '/tmp/express-pouchdb.log',  // FIXME
-    })
     const app = express()
-    app.use('/api', ePdb)
+
+    const EXPRESS_POUCHDB_PREFIX = '/api'
+    const expressPouchDbHandler = ExpressPouchDb(PouchDbConfig, {
+        logPath: Config.EXPRESS_POUCHDB_LOG_PATH,
+    })
+
+    // hot fix to allow mounting express-pouchdb from non / path
+    // ref https://github.com/pouchdb/express-pouchdb/issues/290#issuecomment-265311015
+    // app.use(EXPRESS_POUCHDB_PREFIX, expressPouchDbHandler)
+    // /*
+    app.use((req: express.Request, res: express.Response, next: Function) => {
+        let referer = req.header('Referer')
+        let refererUrl: URL
+        if (referer != null) {
+            refererUrl = new URL(referer)
+        }
+        if (!req.url.startsWith(EXPRESS_POUCHDB_PREFIX)) {
+            // console.log('CHECK', req.url, refererUrl?.pathname)
+            if (/^\/(?:_utils|_session|_all_dbs|_users)/.test(refererUrl?.pathname || req.url)) {
+                return expressPouchDbHandler(req, res)
+                // } else if (req.url == '' && refererUrl?.pathname == `${EXPRESS_POUCHDB_PREFIX}/_utils/`) {
+                //     // non-working code in attempt to allow loading fauxon from /prefix/
+                //     // this doesn't work because the endpoint for resources for fauxson are hard-coded
+                //     // in the front-end javascript, and targets /_utils from the root addr
+                //     return expressPouchDbHandler(req, res)
+            } else {
+                return next()
+            }
+        }
+        if (req.url.endsWith('/_utils')) {
+            // the pouch handler redirects non-slashed paths to the slashed path,
+            // back to the unqualified path (/_utils/), which does NOT have our handler
+            return res.redirect(req.originalUrl + '/')
+        }
+        let originalUrl = req.originalUrl
+        req.url = req.originalUrl = originalUrl.substring(EXPRESS_POUCHDB_PREFIX.length)  // [1/2] required for successful inner middleware call
+        req.baseUrl = ''  // [2/2] required for successful inner middleware call
+        return expressPouchDbHandler(req, res);
+    });
+
     app.use(express.json({
-        verify: (req: express.Request, res: express.Response, buf: Buffer, encoding: string) => {
-            // capture raw body
+        verify: (req: express.Request, res: express.Response, buf: Buffer, encoding: string) => {  // capture raw body into request.rawBody
             if (buf && buf.length > 0) {
                 req['rawBody'] = buf.toString(encoding || 'utf-8')
             }
         },
     }))
 
-    const POUCHDB_BAD_REQUEST_RESPONSE = {  // this is copied from the error response from posting invalid JSON to express-pouchdb at /api
-        error: "bad_request",
-        reason: "invalid_json",
-    }
-
-    app.post('/schema', async (req: express.Request, res: express.Response) => {
+    app.post(`/${JSON_SCHEMAS_TABLE_NAME}`, async (req: express.Request, res: express.Response) => {
         let unvalidatedPayload: any
         let ajv = getDraft04SchemaValidator()
         try {
@@ -134,7 +164,6 @@ export function startWebserver(args: IYarguments = null) {
             pouchSchemas.allDocs().then((out) => {
                 for (let row of out.rows) {
                     break
-                    console.log('schema row', row)
                 }
             })
             return res.json(response)
@@ -144,9 +173,7 @@ export function startWebserver(args: IYarguments = null) {
         })
     })
 
-    const FIXME_SCHEMA_TAGGED_PAYLOADS_ENDPOINT = 'SchemaTaggedPayloads'
-
-    app.get(`/${FIXME_SCHEMA_TAGGED_PAYLOADS_ENDPOINT}/:schemaNameMaybeWithVersion`, async (req: express.Request, res: express.Response) => {
+    app.get(`/${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}/:schemaNameMaybeWithVersion`, async (req: express.Request, res: express.Response) => {
         let [schemaName, schemaVersion] = req.params['schemaNameMaybeWithVersion'].split('@')
 
         // FIXME also match on given version
@@ -170,12 +197,17 @@ export function startWebserver(args: IYarguments = null) {
 
         if (schema != null) {
             return res.json(stripPouchDbMetadataFields_BANG(schema))
+        } else {
+            return res.json({
+                status: 'error',
+                message: 'nothing found',
+            })
         }
     })
 
-    app.post(`/${FIXME_SCHEMA_TAGGED_PAYLOADS_ENDPOINT}/:schemaNameMaybeWithVersion`, async (req: express.Request, res: express.Response) => {
+    app.post(`/${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}/:schemaNameMaybeWithVersion`, async (req: express.Request, res: express.Response) => {
         let [schemaName, schemaVersion] = req.params['schemaNameMaybeWithVersion'].split('@')
-        console.log(schemaName, schemaVersion)
+        console.log({ schemaName, schemaVersion })
 
         // FIXME also match on given version
         let schema = await pouchSchemas.createIndex({
@@ -214,7 +246,6 @@ export function startWebserver(args: IYarguments = null) {
         let unvalidatedPayload = JSON.parse(req['rawBody'])
         try {
             delete schema['$schema']
-            console.log(schema)
             validationResult = await validateDataWithSchema(unvalidatedPayload, schema)
         } catch (e) {
             console.error(e)
@@ -228,10 +259,14 @@ export function startWebserver(args: IYarguments = null) {
             }
             return res.json(validationResult)
         } else {
-            // TAG HAPPENS HERE
-            let schemaTaggedPayload = FIXME_wrapIntoTaggedSchemaPayload(
-                schema['title'], schema['version'],
-                unvalidatedPayload)
+            // TAG WRAPPING HAPPENS HERE
+            let schemaTaggedPayload: SchemaTaggedPayload = {
+                dataChecksum: `sha256:${getSha256(JSON.stringify(unvalidatedPayload))}`,
+                createdAt: Date.now() / 1e3,
+                ...unvalidatedPayload,
+                schemaName: schema['title'],
+                schemaVersion: schema['version'],
+            }
             let hash = getSha256(JSON.stringify(schemaTaggedPayload))
             return pouchSchemaTaggedPayloads.putIfNotExists({
                 _id: hash,
@@ -249,6 +284,7 @@ export function startWebserver(args: IYarguments = null) {
 
 if (require.main == module) {
 
+    /* example
     let randomData = ['foo', 'bar', 'baz'].map((data, index) => {
         let varyingStructure = index < 2
             ? { oneLevel: 'flat' }
@@ -259,8 +295,8 @@ if (require.main == module) {
             ...varyingStructure,
         }
     })
-
     SchemaStatisticsLoader.autoLoadSingleDataset(randomData)
+    // */
 
     let yargOptions: { [key in keyof IYarguments]: any } = {
         database: {
