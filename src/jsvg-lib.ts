@@ -35,13 +35,19 @@ function preprocessJsonSchema_BANG(jsonSchemaObject: object) {
     })
 }
 
+function jsonnetWithJpaths(paths: Array<string>): Jsonnet {
+    let jsonnet = new Jsonnet()
+    for (const path of paths) {
+        jsonnet = jsonnet.addJpath(path)
+    }
+    return jsonnet
+}
 
 export async function renderJsonnet(jsonnetSource: string, shouldDefererence: boolean = true): Promise<object> {
-
-    const jsonnet = new Jsonnet()
+    const jsonnet = jsonnetWithJpaths(process.env['JSONNET_PATH'] == null ? [process.cwd()] : process.env['JSONNET_PATH'].split(':'))
     let jsonString: string
     try {
-        jsonString = await jsonnet.addJpath(process.cwd()).evaluateSnippet(jsonnetSource)
+        jsonString = await jsonnet.evaluateSnippet(jsonnetSource)
     } catch (e) {
         console.error(e)
         throw e
@@ -70,11 +76,12 @@ export interface ValidationResult<TargetType = any> {
 
 export function validateDataWithSchema<OutputType = any>(data: any, schema: any): Promise<ValidationResult<OutputType>> {
     const ajv = new Ajv({ strict: false })
+    let isValid = ajv.validate(schema, data)
     let result: ValidationResult = {
         data: <OutputType>data,
         schema: schema,
-        isValid: ajv.validate(schema, data),
-        errors: ajv.errors
+        isValid: isValid,
+        errors: ajv.errors,
     }
     return Promise.resolve(result as ValidationResult)
 }
