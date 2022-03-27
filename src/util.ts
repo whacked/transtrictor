@@ -3,6 +3,12 @@ import path from 'path'
 import chalk from 'chalk'
 
 
+export function bailIfNotExists(filePath: string) {
+    if (!fs.existsSync(filePath)) {
+        throw new Error(`file "${filePath}" does not exist`)
+    }
+}
+
 export function slurp(filePath: string): string {
     return fs.readFileSync(filePath, 'utf-8')
 }

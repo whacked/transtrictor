@@ -78,12 +78,22 @@ in pkgs.mkShell {
         transformer=$4            # path/to/transformer.jsonata
         post_transform_schema=$5  # path/to/output.schema.jsonnet
 
-        ts-node scripts/cli.ts \
-            -c "$context" \
-            -i $input_data \
-            -s $input_schema \
-            -t $transformer \
-            -p $post_transform_schema
+        ts-node -T scripts/cli.ts \
+            --context "$context" \
+            --input "$input_data" \
+            --schema "$input_schema" \
+            --transformer "$transformer" \
+            --postTransformSchema "$post_transform_schema"
+    }
+
+    generate-json-schema() {
+        if [ $# -ne 2 ]; then
+            echo 'requires:  <schema-name> <path-to-source-data>'
+            return
+        fi
+        schema_name=$1
+        input_file=$2
+        ts-node scripts/cli.ts --input $input_file | jq '.title = "'$schema_name'"' | jq '.version = "'$(date +%F.1)'"' | jsonnetfmt -
     }
 
     add-transformed-data-to-server() {
