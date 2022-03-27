@@ -98,16 +98,24 @@ export async function transformWithJsonnet(inputData: IWrappedDataContext, jsonn
 
 export async function transformWithJsonata(inputData: IWrappedDataContext, expressionString: string): Promise<IWrappedDataContext> {
     return new Promise((resolve, reject) => {
-        const outputData = jsonata(expressionString).evaluate(inputData)
-        resolve(<IWrappedDataContext>outputData);
+        try {
+            const outputData = jsonata(expressionString).evaluate(inputData)
+            resolve(<IWrappedDataContext>outputData);
+        } catch (error) {
+            reject(error)
+        }
     })
 }
 
 export async function transformWithMorphismJsonString(inputData: IWrappedDataContext, morphismJsonString: string): Promise<IWrappedDataContext> {
     return new Promise((resolve, reject) => {
-        const morphismSchema = JSON.parse(morphismJsonString)
-        const outputData = morphism(morphismSchema, inputData) as IWrappedDataContext
-        resolve(<IWrappedDataContext>outputData);
+        try {
+            const morphismSchema = JSON.parse(morphismJsonString)
+            const outputData = morphism(morphismSchema, inputData) as IWrappedDataContext
+            resolve(<IWrappedDataContext>outputData);
+        } catch (error) {
+            reject(error)
+        }
     })
 }
 
