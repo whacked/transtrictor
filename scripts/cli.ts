@@ -129,15 +129,13 @@ export async function cliMain(args: IYarguments): Promise<any> {
         let keyedContextSchema = await renderJsonnet(slurp(contextSchemaFile))
         keyedContext[contextKey] = await validateDataWithSchema(keyedContextData, keyedContextSchema)
     }
-    let runTransform: (input: any) => Promise<any>;
 
-    if (args.transformer == null) {
-        runTransform = async (input) => {
+    let transformer: Transformer = args.transformer == null ? null : loadTransformerFile(args.transformer)
+    let runTransform: (input: any) => Promise<any> = transformer == null
+        ? async (input) => {
             return Promise.resolve(input)
         }
-    } else {
-        bailIfNotExists(args.transformer)
-        runTransform = async (input: any) => {
+        : async (input: any) => {
             let transformer = loadTransformerFile(args.transformer)
             let context: any
             try {
@@ -177,7 +175,6 @@ export async function cliMain(args: IYarguments): Promise<any> {
                 }
             })
         }
-    }
 
     async function processJsonnetStringTransformation(targetDataJsonnetSource: string) {
         tok('validating...')
