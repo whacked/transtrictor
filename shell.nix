@@ -107,6 +107,31 @@ in pkgs.mkShell {
             curl -H 'Content-Type: application/json' $SERVER_ENDPOINT/SchemaTaggedPayloads/$schema_name -d @-
     }
   '' + ''
+    # sqlite interaction
+    list-databases() {
+        DBS_DBS_PATH=$POUCHDB_DATABASE_PREFIX/pouch__all_dbs__
+        if [ ! -e $DBS_DBS_PATH ]; then
+            echo "did not find meta database at $DBS_DBS_PATH; you might need to set POUCHDB_DATABASE_PREFIX first"
+            return
+        fi
+        echo "=== available databases ==="
+        sqlite3 $DBS_DBS_PATH 'SELECT id FROM "document-store"' | sed 's|^db_||' | grep -v '^_'
+    }
+
+    list-documents-in-database() {
+        if [ $# -lt 1 ]; then
+            echo "need <database-name>"
+            list-databases
+            return
+        fi
+        database_name=$1
+        if [ $(list-databases | grep "^$database_name$" | wc -l) -ne 1 ]; then
+            echo "no such database: $database_name"
+            list-databases
+        fi
+        sqlite3 $POUCHDB_DATABASE_PREFIX/$database_name 'SELECT ds.id, bs.json FROM "document-store" AS ds, "by-sequence" AS bs WHERE ds.id = bs.doc_id'
+    }
+
     echo-shortcuts ${__curPos.file}
   '';
 }
