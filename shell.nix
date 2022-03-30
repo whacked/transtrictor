@@ -40,6 +40,7 @@ in pkgs.mkShell {
     alias run-tests='jest'
     alias start-front='parcel app/index.html'
     alias start-back='ts-node parsers/multi.ts'
+    alias start-dev-webserver='ts-node-dev --respawn app/webserver.ts'
     echo -e "\033[0;34m  generate-schema <some-data.json> to auto-generate a json schema \033[0m"
 
   '' + ''
@@ -57,13 +58,25 @@ in pkgs.mkShell {
     }
 
     add-data-to-server() {
-        if [ $# -ne 2 ]; then
-            echo 'requires:  <schema-name> <path-to-data>'
+        case $1 in
+            --created-at)
+                shift
+                created_at_string="?createdAt=$1"
+                shift
+                ;;
+
+            *)
+                created_at_string=
+                ;;
+        esac
+
+        if [ $# -lt 2 ]; then
+            echo 'requires:  [--created-at time] <schema-name> <path-to-data>'
             return
         fi
         schema_name=$1
         path_to_data=$2
-        curl -H 'Content-Type: application/json' $SERVER_ENDPOINT/SchemaTaggedPayloads/$schema_name -d@$path_to_data
+        curl -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/SchemaTaggedPayloads/$schema_name$created_at_string" -d@$path_to_data
     }
 
     render-transformed-data() {
@@ -106,6 +119,36 @@ in pkgs.mkShell {
         render-transformed-data "$2" "$3" "$4" "$5" "$6" |
             curl -H 'Content-Type: application/json' $SERVER_ENDPOINT/SchemaTaggedPayloads/$schema_name -d @-
     }
+
+    add-transformer-to-server() {
+        if [ $# -lt 1 ]; then
+            echo 'requires:  <path-to-file>'
+            return
+        fi
+
+        while [ $# -gt 0 ]; do
+            echo $1
+            case $1 in
+                input*=*)
+                    inputsarg="-F inputSchemas=$(echo $1 | cut -d= -f2)"
+                    ;;
+
+                output*=*)
+                    outputarg="-F outputSchema=$(echo $1 | cut -d= -f2)"
+                    ;;
+
+                *)
+                    if [ ! -e $1 ]; then
+                        echo "ERROR: no file found at $1"
+                        return
+                    fi
+                    source_file=$1
+                    ;;
+            esac
+            shift
+        done
+        curl -vvv $inputsarg $outputarg -F "file=@$source_file" $SERVER_ENDPOINT/Transformers
+    }
   '' + ''
     # sqlite interaction
     list-databases() {
@@ -129,7 +172,89 @@ in pkgs.mkShell {
             echo "no such database: $database_name"
             list-databases
         fi
-        sqlite3 $POUCHDB_DATABASE_PREFIX/$database_name 'SELECT ds.id, bs.json FROM "document-store" AS ds, "by-sequence" AS bs WHERE ds.id = bs.doc_id'
+        case $2 in
+            --json)
+                FILTER() {
+                    cat - | sed 's/[^|]\+|//'
+                }
+                ;;
+
+            *)
+                FILTER() {
+                    cat
+                }
+                ;;
+        esac
+        sqlite3 $POUCHDB_DATABASE_PREFIX/$database_name 'SELECT ds.id, bs.json FROM "document-store" AS ds, "by-sequence" AS bs WHERE ds.id = bs.doc_id' | FILTER
+    }
+
+    get-transformer() {
+        if [ $# -lt 1 ]; then
+            echo "need <transformer-name>"
+            return
+        fi
+        transformer_name=$1
+        list-documents-in-database Transformers --json | jq -s | jq '.[]|select(.name == "'$transformer_name'")'
+    }
+
+    get-transformer-source() {
+        get-transformer $1 | jq -r '.sourceCode'
+    }
+
+    run-and-store-transform() {
+        case $1 in
+            --created-at)
+                shift
+                created_at_string="?createdAt=$1"
+                shift
+                ;;
+
+            *)
+                created_at_string=
+                ;;
+        esac
+
+        if [ $# -lt 2 ]; then
+            echo "need [--created-at time] <data-hash> <transformer-name>"
+            return
+        fi
+        hash=$1
+        transformer=$2
+        curl -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/transformPayload/$hash$created_at_string" -d '{"transformerName": "'$transformer'"}'
+    }
+
+    apply-transform() {
+        hash=$1
+        list-documents-in-database SchemaTaggedPayloads --json |
+            jq -s |
+            jq '.[]|select(.dataChecksum == "sha256:$hash")'
+        if [ $# -lt 1 ]; then
+            echo 'requires:  <path-to-file>'
+            return
+        fi
+
+        while [ $# -gt 0 ]; do
+            echo $1
+            case $1 in
+                input*=*)
+                    inputsarg="-F inputSchemas=$(echo $1 | cut -d= -f2)"
+                    ;;
+
+                output*=*)
+                    outputarg="-F outputSchema=$(echo $1 | cut -d= -f2)"
+                    ;;
+
+                *)
+                    if [ ! -e $1 ]; then
+                        echo "ERROR: no file found at $1"
+                        return
+                    fi
+                    source_file=$1
+                    ;;
+            esac
+            shift
+        done
+        curl -vvv $inputsarg $outputarg -F "file=@$source_file" $SERVER_ENDPOINT/Transformers
     }
 
     echo-shortcuts ${__curPos.file}

@@ -1,6 +1,7 @@
 import PouchDB from 'pouchdb'
 import express from 'express'
 import ExpressPouchDb from 'express-pouchdb'
+import ExpressFileUpload, { UploadedFile } from 'express-fileupload'
 import {
     PouchDbConfig,
     POUCHDB_ADAPTER_CONFIG,
@@ -11,15 +12,19 @@ import { hideBin } from 'yargs/helpers';
 import { validateDataWithSchema, ValidationResult } from '../src/jsvg-lib';
 import SchemaTaggedPayloadSchema from '../src/autogen/schemas/anthology/2022/03/25/SchemaTaggedPayloadProtocol.schema.json'
 import { SchemaTaggedPayload } from '../src/autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload'
+import { Transformer } from '../src/autogen/interfaces/anthology/2022/03/30/Transformer'
 import Ajv from 'ajv';
 import Draft04Schema from 'json-metaschema/draft-04-schema.json'
 import { getSha256 } from '../src/database';
 import {
     Config,
+    CURRENT_PROTOCOL_VERSION,
     JSON_SCHEMAS_TABLE_NAME,
     SCHEMA_TAGGED_PAYLOADS_TABLE_NAME,
+    TRANSFORMERS_TABLE_NAME,
 } from '../src/defs';
 import { monkeyPatchConsole } from '../src/util';
+import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../src/transformer'
 monkeyPatchConsole()
 
 
@@ -33,6 +38,7 @@ monkeyPatchConsole()
 // })
 
 let pouchSchemas = new PouchDB(JSON_SCHEMAS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
+let pouchTransformers = new PouchDB(TRANSFORMERS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
 let pouchSchemaTaggedPayloads = new PouchDB(SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
 
 const POUCHDB_BAD_REQUEST_RESPONSE = {  // this is copied from the error response from posting invalid JSON to express-pouchdb at /api
@@ -51,6 +57,10 @@ export const FIXME_SchemaHasTitleAndVersion = {
         },
     },
     required: ['title', 'version'],
+}
+
+function toSha256Checksum(data: any) {
+    return `sha256:${getSha256(data)}`
 }
 
 function stripPouchDbMetadataFields_BANG(record: any): any {
@@ -75,6 +85,24 @@ function getDraft04SchemaValidator(): Ajv {
     return ajv
 }
 
+function findSchema(schemaName: string, schemaVersion: string = null) {
+    return pouchSchemas.find({
+        selector: {
+            title: schemaName,
+            ...(schemaVersion == null ? null : {}),
+        },
+    })
+}
+
+async function findLatestMatchingSchema(schemaName: string) {
+    return findSchema(schemaName).then((result) => {
+        if (result.docs.length > 0) {
+            return result.docs[0]
+        }
+        return null
+    })
+}
+
 // this isn't being used downstream anywhere
 interface IYarguments {
     database: string,
@@ -83,6 +111,7 @@ interface IYarguments {
 export function startWebserver(args: IYarguments = null) {
 
     const app = express()
+    app.use(ExpressFileUpload())
 
     const EXPRESS_POUCHDB_PREFIX = '/api'
     const expressPouchDbHandler = ExpressPouchDb(PouchDbConfig, {
@@ -130,6 +159,66 @@ export function startWebserver(args: IYarguments = null) {
             }
         },
     }))
+
+    app.post(`/${TRANSFORMERS_TABLE_NAME}`, async (req: express.Request, res: express.Response) => {
+
+        let maybeFile = req.files?.file as UploadedFile
+        if (maybeFile == null) {
+            return res.json({
+                status: 'error',
+                message: 'there was no file in the request',
+            })
+        }
+
+        let matchGroups = maybeFile.name.match(/(.+)\.([^\.]+)$/)
+        let transformerName = matchGroups[1]
+        let transformerLanguage = matchGroups[2]
+        let sourceCode = maybeFile.data.toString()
+
+        let transformerRecord: Transformer = {
+            language: transformerLanguage as any,
+            sourceCode,
+            sourceCodeChecksum: toSha256Checksum(sourceCode),
+            name: transformerName,
+        }
+
+        let errors = []
+        if (req.body.outputSchema != null) {
+            await findLatestMatchingSchema(req.body.outputSchema).then((doc) => {
+                if (doc == null) {
+                    errors.push(`did not find any schema matching output schema "${req.body.outputSchema}"`)
+                }
+            })
+            transformerRecord.outputSchema = req.body.outputSchema
+        }
+        if (req.body.inputSchemas != null) {
+            let inputSchemaNames = req.body.inputSchemas.split(',').map((s: string) => s.trim())
+            for (const inputSchemaName of inputSchemaNames) {
+                await findLatestMatchingSchema(inputSchemaName).then((doc) => {
+                    if (doc == null) {
+                        errors.push(`did not find any schema matching input schema "${inputSchemaName}"`)
+                    }
+                })
+            }
+            transformerRecord.supportedInputSchemas = inputSchemaNames
+        }
+
+        if (errors.length > 0) {
+            return res.json({
+                status: 'error',
+                errors: errors,
+            })
+        }
+
+        return pouchTransformers.put({
+            _id: transformerRecord.sourceCodeChecksum,
+            ...transformerRecord,
+        }).then((response) => {
+            return res.json(response)
+        }).catch((error) => {
+            return res.json(error)
+        })
+    })
 
     app.post(`/${JSON_SCHEMAS_TABLE_NAME}`, async (req: express.Request, res: express.Response) => {
         let unvalidatedPayload: any
@@ -207,7 +296,7 @@ export function startWebserver(args: IYarguments = null) {
 
     app.post(`/${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}/:schemaNameMaybeWithVersion`, async (req: express.Request, res: express.Response) => {
         let [schemaName, schemaVersion] = req.params['schemaNameMaybeWithVersion'].split('@')
-        console.log({ schemaName, schemaVersion })
+        let createdAt: number = req.query['createdAt'] == null ? Date.now() / 1e3 : parseFloat(req.query['createdAt'] as string)
 
         // FIXME also match on given version
         let schema = await pouchSchemas.createIndex({
@@ -215,15 +304,7 @@ export function startWebserver(args: IYarguments = null) {
                 fields: ['version', 'title'],
             }
         }).then(() => {
-            return pouchSchemas.find({
-                selector: {
-                    title: schemaName,
-                    ...(schemaVersion == null ? null : {}),
-                },
-                // can't get this to work yet:
-                // Error: Cannot sort on field(s) "version" when using the default index
-                // sort: ['version'],
-            })
+            return findSchema(schemaName, schemaVersion)
         }).then((result) => {
             if (result.docs.length > 0) {
                 // should pick the latest one!
@@ -238,7 +319,7 @@ export function startWebserver(args: IYarguments = null) {
         if (schema == null) {
             return res.json({
                 status: 'error',
-                message: 'no such schema',
+                message: `no such schema: ${schemaName}`,
             })
         }
 
@@ -259,11 +340,14 @@ export function startWebserver(args: IYarguments = null) {
             }
             return res.json(validationResult)
         } else {
+            let dataChecksum = toSha256Checksum(JSON.stringify(unvalidatedPayload))
+
             // TAG WRAPPING HAPPENS HERE
             let schemaTaggedPayload: SchemaTaggedPayload = {
-                dataChecksum: `sha256:${getSha256(JSON.stringify(unvalidatedPayload))}`,
-                createdAt: Date.now() / 1e3,
-                ...unvalidatedPayload,
+                protocolVersion: CURRENT_PROTOCOL_VERSION,
+                dataChecksum,
+                createdAt,
+                data: unvalidatedPayload,
                 schemaName: schema['title'],
                 schemaVersion: schema['version'],
             }
@@ -272,9 +356,97 @@ export function startWebserver(args: IYarguments = null) {
                 _id: hash,
                 ...schemaTaggedPayload,
             }).then((result) => {
-                return res.json(result)
+                return res.json({
+                    ...result,
+                    dataChecksum,  // RISKY: this is not a standard return and is not schematized. drift risk
+                })
             })
         }
+    })
+
+    app.post('/transformPayload/:dataChecksum', async (req: express.Request, res: express.Response) => {
+        let combinedParams = {
+            ...req.params,
+            ...JSON.parse(req['rawBody']),
+        }
+        let {
+            dataChecksum,
+            transformerName,
+            context,
+        } = combinedParams
+        let createdAt: number = req.query['createdAt'] == null ? Date.now() / 1e3 : parseFloat(req.query['createdAt'] as string)
+
+        let transformerRecord = await pouchTransformers.find({
+            selector: {
+                name: transformerName
+            }
+        }).then((result) => {
+            return (<any>result.docs[0]) as Transformer
+        })
+
+        if (transformerRecord == null) {
+            return res.json({
+                status: 'error',
+                message: `no transformer named ${transformerName}`,
+            })
+        }
+
+        let payload = await pouchSchemaTaggedPayloads.find({
+            selector: {
+                dataChecksum: dataChecksum,
+            }
+        }).then((result) => {
+            return (<any>result.docs[0]) as SchemaTaggedPayload
+        })
+
+        if (payload == null) {
+            return res.json({
+                status: 'error',
+                message: `no data with checksum ${dataChecksum}`,
+            })
+        }
+
+        let outputSchema = await pouchSchemas.find({
+            selector: {
+                title: transformerRecord.outputSchema,
+            }
+        }).then((result) => {
+            return (<any>result.docs[0])
+        })
+
+        if (outputSchema == null) {
+            return res.json({
+                status: 'error',
+                message: `no output schema matching ${transformerRecord.outputSchema}`
+            })
+        }
+
+        let outputSchemaName = outputSchema.title
+        let outputSchemaVersion = outputSchema.version
+
+        let transformer = makeTransformer(transformerRecord.language as TransformerLanguage, transformerRecord.sourceCode)
+        return transformer.transform(wrapTransformationContext(payload.data, context)).then((transformed) => {
+            return unwrapTransformationContext(transformed)
+        }).then((unwrapped) => {
+            // need option to NOT store?
+            // TAG WRAPPING HAPPENS HERE
+            let schemaTaggedPayload: SchemaTaggedPayload = {
+                protocolVersion: CURRENT_PROTOCOL_VERSION,
+                dataChecksum,
+                createdAt,
+                data: unwrapped,
+                schemaName: outputSchemaName,
+                schemaVersion: outputSchemaVersion,
+            }
+            let hash = getSha256(JSON.stringify(schemaTaggedPayload))
+
+            return pouchSchemaTaggedPayloads.putIfNotExists({
+                _id: hash,
+                ...schemaTaggedPayload,
+            }).then((result) => {
+                return res.json(result)
+            })
+        })
     })
 
     return app.listen(Config.API_SERVER_PORT, () => {
