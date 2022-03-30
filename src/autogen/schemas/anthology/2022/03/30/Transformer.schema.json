@@ -1,0 +1,42 @@
+{
+   "properties": {
+      "language": {
+         "enum": [
+            "jq",
+            "jsonata",
+            "jsonnet",
+            "morphism"
+         ],
+         "type": "string"
+      },
+      "name": {
+         "type": "string"
+      },
+      "outputSchema": {
+         "type": "string"
+      },
+      "sourceCode": {
+         "type": "string"
+      },
+      "sourceCodeChecksum": {
+         "examples": [
+            "sha256:d7946e0aa58456d44fdc86eb25877d9e8008a98c76c073df526a193da293eae1"
+         ],
+         "type": "string"
+      },
+      "supportedInputSchemas": {
+         "items": {
+            "type": "string"
+         },
+         "type": "array"
+      }
+   },
+   "required": [
+      "language",
+      "sourceCode",
+      "sourceCodeChecksum"
+   ],
+   "title": "Transformer",
+   "type": "object",
+   "version": "2022-03-30.1"
+}
