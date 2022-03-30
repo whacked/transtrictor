@@ -3,10 +3,10 @@ rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(su
 
 JSONNET_SCHEMAS_DIRECTORY := generators/schemas
 JSONNET_SCHEMAS_FILES     := $(wildcard \
-							 $(JSONNET_SCHEMAS_DIRECTORY)/*.jsonnet \
-							 $(JSONNET_SCHEMAS_DIRECTORY)/*/*.jsonnet \
-							 $(JSONNET_SCHEMAS_DIRECTORY)/*/*/*.jsonnet \
-							 $(JSONNET_SCHEMAS_DIRECTORY)/anthology/*/*/*/*.jsonnet \
+							 $(JSONNET_SCHEMAS_DIRECTORY)/*.schema.jsonnet \
+							 $(JSONNET_SCHEMAS_DIRECTORY)/*/*.schema.jsonnet \
+							 $(JSONNET_SCHEMAS_DIRECTORY)/*/*/*.schema.jsonnet \
+							 $(JSONNET_SCHEMAS_DIRECTORY)/anthology/*/*/*/*.schema.jsonnet \
 							 )
 JSON_SCHEMAS_DIRECTORY    := src/autogen/schemas
 JSON_SCHEMAS_FILES        := $(patsubst $(JSONNET_SCHEMAS_DIRECTORY)/%.jsonnet,$(JSON_SCHEMAS_DIRECTORY)/%.json,$(JSONNET_SCHEMAS_FILES))
@@ -41,3 +41,7 @@ $(TS_INTERFACES_DIRECTORY)/%.ts: $(JSON_SCHEMAS_DIRECTORY)/%.schema.json
 	mkdir -p $(dir $@)
 	json2ts $< | tee $@
 
+# legacy
+$(TS_INTERFACES_DIRECTORY)/anthology/2022/02/26/SchemaTaggedPayload.ts: $(JSON_SCHEMAS_DIRECTORY)/anthology/2022/02/26/SchemaTaggedPayload.schema.json
+	json2ts $< | tee $@
+	echo -e 'export interface TypedSchemaTaggedPayload<T> extends SchemaTaggedPayload { data: T }' | tee -a $@
