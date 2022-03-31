@@ -103,6 +103,70 @@ async function findLatestMatchingSchema(schemaName: string) {
     })
 }
 
+// FIXME MOVEME
+export async function transformPayload(
+    transformerName: string,
+    dataChecksum: string,
+    context: any,
+): Promise<SchemaTaggedPayload> {
+    let transformerRecord = await pouchTransformers.find({
+        selector: {
+            name: transformerName
+        }
+    }).then((result) => {
+        return (<any>result.docs[0]) as Transformer
+    })
+
+    if (transformerRecord == null) {
+        throw new Error(`no transformer named ${transformerName}`)
+    }
+
+    let payload = await pouchSchemaTaggedPayloads.find({
+        selector: {
+            dataChecksum: dataChecksum,
+        }
+    }).then((result) => {
+        return (<any>result.docs[0]) as SchemaTaggedPayload
+    })
+
+    if (payload == null) {
+        throw new Error(`no data with checksum ${dataChecksum}`)
+    }
+
+    let outputSchema = await pouchSchemas.find({
+        selector: {
+            title: transformerRecord.outputSchema,
+        }
+    }).then((result) => {
+        return (<any>result.docs[0])
+    })
+
+    if (outputSchema == null) {
+        throw new Error(`no output schema matching ${transformerRecord.outputSchema}`)
+    }
+
+    let outputSchemaName = outputSchema.title
+    let outputSchemaVersion = outputSchema.version
+
+    let transformer = makeTransformer(transformerRecord.language as TransformerLanguage, transformerRecord.sourceCode)
+
+    return transformer.transform(wrapTransformationContext(payload.data, context)).then((transformed) => {
+        return unwrapTransformationContext(transformed)
+    }).then((unwrapped) => {
+        // TAG WRAPPING HAPPENS HERE
+        let schemaTaggedPayload: SchemaTaggedPayload = {
+            protocolVersion: CURRENT_PROTOCOL_VERSION,
+            dataChecksum,
+            createdAt: context['createdAt'] ?? Date.now() / 1e3,
+            data: unwrapped,
+            schemaName: outputSchemaName,
+            schemaVersion: outputSchemaVersion,
+        }
+        return schemaTaggedPayload
+    })
+
+}
+
 // this isn't being used downstream anywhere
 interface IYarguments {
     database: string,
@@ -129,7 +193,6 @@ export function startWebserver(args: IYarguments = null) {
             refererUrl = new URL(referer)
         }
         if (!req.url.startsWith(EXPRESS_POUCHDB_PREFIX)) {
-            // console.log('CHECK', req.url, refererUrl?.pathname)
             if (/^\/(?:_utils|_session|_all_dbs|_users)/.test(refererUrl?.pathname || req.url)) {
                 return expressPouchDbHandler(req, res)
                 // } else if (req.url == '' && refererUrl?.pathname == `${EXPRESS_POUCHDB_PREFIX}/_utils/`) {
@@ -159,6 +222,14 @@ export function startWebserver(args: IYarguments = null) {
             }
         },
     }))
+
+    function getRawBodyJson(req: express.Request) {
+        try {
+            return JSON.parse(req['rawBody'])
+        } catch (e) {
+            return {}
+        }
+    }
 
     app.post(`/${TRANSFORMERS_TABLE_NAME}`, async (req: express.Request, res: express.Response) => {
 
@@ -224,7 +295,7 @@ export function startWebserver(args: IYarguments = null) {
         let unvalidatedPayload: any
         let ajv = getDraft04SchemaValidator()
         try {
-            unvalidatedPayload = JSON.parse(req['rawBody'])
+            unvalidatedPayload = getRawBodyJson(req)
             let isValid: any
             isValid = ajv.validate(FIXME_SchemaHasTitleAndVersion, unvalidatedPayload)
             if (!isValid) {
@@ -324,7 +395,7 @@ export function startWebserver(args: IYarguments = null) {
         }
 
         let validationResult: ValidationResult
-        let unvalidatedPayload = JSON.parse(req['rawBody'])
+        let unvalidatedPayload = getRawBodyJson(req)
         try {
             delete schema['$schema']
             validationResult = await validateDataWithSchema(unvalidatedPayload, schema)
@@ -364,89 +435,69 @@ export function startWebserver(args: IYarguments = null) {
         }
     })
 
+    function getCreatedAt(maybeContext: any) {
+        return maybeContext['createdAt'] == null
+            ? Date.now() / 1e3
+            : parseFloat(maybeContext['createdAt'] as string)
+    }
+
+    app.get('/Transformers/:transformerName/:dataChecksum', async (req: express.Request, res: express.Response) => {
+        let {
+            dataChecksum,
+            transformerName,
+        } = req.params
+        let context = req.params['context'] ?? {}
+        if (context['createdAt'] == null) {
+            context['createdAt'] = getCreatedAt(context)
+        }
+        try {
+            let transformed = await transformPayload(
+                transformerName,
+                dataChecksum,
+                context,
+            )
+            return res.json(transformed)
+        } catch (error) {
+            return res.json({
+                status: 'error',
+                message: error.toString(),
+            })
+        }
+    })
+
     app.post('/transformPayload/:dataChecksum', async (req: express.Request, res: express.Response) => {
         let combinedParams = {
             ...req.params,
-            ...JSON.parse(req['rawBody']),
+            ...req.query,
+            ...getRawBodyJson(req),
         }
         let {
             dataChecksum,
             transformerName,
-            context,
         } = combinedParams
-        let createdAt: number = req.query['createdAt'] == null ? Date.now() / 1e3 : parseFloat(req.query['createdAt'] as string)
-
-        let transformerRecord = await pouchTransformers.find({
-            selector: {
-                name: transformerName
-            }
-        }).then((result) => {
-            return (<any>result.docs[0]) as Transformer
-        })
-
-        if (transformerRecord == null) {
-            return res.json({
-                status: 'error',
-                message: `no transformer named ${transformerName}`,
-            })
+        let context = combinedParams['context'] ?? {}
+        if (context['createdAt'] == null) {
+            context['createdAt'] = getCreatedAt(context)
         }
-
-        let payload = await pouchSchemaTaggedPayloads.find({
-            selector: {
-                dataChecksum: dataChecksum,
-            }
-        }).then((result) => {
-            return (<any>result.docs[0]) as SchemaTaggedPayload
-        })
-
-        if (payload == null) {
-            return res.json({
-                status: 'error',
-                message: `no data with checksum ${dataChecksum}`,
-            })
-        }
-
-        let outputSchema = await pouchSchemas.find({
-            selector: {
-                title: transformerRecord.outputSchema,
-            }
-        }).then((result) => {
-            return (<any>result.docs[0])
-        })
-
-        if (outputSchema == null) {
-            return res.json({
-                status: 'error',
-                message: `no output schema matching ${transformerRecord.outputSchema}`
-            })
-        }
-
-        let outputSchemaName = outputSchema.title
-        let outputSchemaVersion = outputSchema.version
-
-        let transformer = makeTransformer(transformerRecord.language as TransformerLanguage, transformerRecord.sourceCode)
-        return transformer.transform(wrapTransformationContext(payload.data, context)).then((transformed) => {
-            return unwrapTransformationContext(transformed)
-        }).then((unwrapped) => {
-            // need option to NOT store?
-            // TAG WRAPPING HAPPENS HERE
-            let schemaTaggedPayload: SchemaTaggedPayload = {
-                protocolVersion: CURRENT_PROTOCOL_VERSION,
+        try {
+            let schemaTaggedPayload: SchemaTaggedPayload = await transformPayload(
+                transformerName,
                 dataChecksum,
-                createdAt,
-                data: unwrapped,
-                schemaName: outputSchemaName,
-                schemaVersion: outputSchemaVersion,
-            }
+                context,
+            )
             let hash = getSha256(JSON.stringify(schemaTaggedPayload))
-
             return pouchSchemaTaggedPayloads.putIfNotExists({
                 _id: hash,
                 ...schemaTaggedPayload,
             }).then((result) => {
                 return res.json(result)
             })
-        })
+        } catch (e) {
+            return res.json({
+                status: 'error',
+                message: e.toString(),
+            })
+        }
     })
 
     return app.listen(Config.API_SERVER_PORT, () => {
