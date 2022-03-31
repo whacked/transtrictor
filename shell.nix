@@ -11,6 +11,7 @@ in pkgs.mkShell {
     pkgs.go
     pkgs.jsonnet
     pkgs.yarn
+    pkgs.miller
     # pkgs.deno
   ];
 
