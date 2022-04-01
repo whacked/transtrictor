@@ -20,12 +20,15 @@ export const POUCHDB_ADAPTER_CONFIG = (Config.POUCHDB_DATABASE_PREFIX ?? ':memor
 
 export let PouchDbConfig = null;
 // FIXME reorganize this -- only webserver uses it now
+const FIXME_FALSE = false
 if (POUCHDB_ADAPTER_CONFIG.adapter == ':memory:') {
     console.info('IN MEMORY DATABASE')
     PouchDbConfig = PouchDB.plugin(require('pouchdb-adapter-memory')).defaults(POUCHDB_ADAPTER_CONFIG)
-} else {
+} else if (FIXME_FALSE) {
     console.info(`WEBSQL DATABASE at ${POUCHDB_ADAPTER_CONFIG.prefix}`)
     PouchDbConfig = PouchDB.plugin(require('pouchdb-adapter-node-websql')).defaults(POUCHDB_ADAPTER_CONFIG)
+} else {
+    PouchDB.plugin(require('pouchdb-authentication'))
 }
 PouchDB.plugin(require('pouchdb-find'))
 PouchDB.plugin(require('pouchdb-upsert'))
