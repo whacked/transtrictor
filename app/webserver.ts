@@ -441,21 +441,34 @@ export function startWebserver(args: IYarguments = null) {
             : parseFloat(maybeContext['createdAt'] as string)
     }
 
-    app.get('/Transformers/:transformerName/:dataChecksum', async (req: express.Request, res: express.Response) => {
+    async function handleDataTransformationRequest(req: express.Request) {
+        let combinedParams = {
+            ...req.params,
+            ...req.query,
+            ...getRawBodyJson(req),
+        }
         let {
             dataChecksum,
             transformerName,
-        } = req.params
-        let context = req.params['context'] ?? {}
+        } = combinedParams
+
+        let context = combinedParams['context'] ?? {}
         if (context['createdAt'] == null) {
-            context['createdAt'] = getCreatedAt(context)
+            context['createdAt'] = getCreatedAt(combinedParams)
         }
+
+        let schemaTaggedPayload: SchemaTaggedPayload = await transformPayload(
+            transformerName,
+            dataChecksum,
+            context,
+        )
+
+        return schemaTaggedPayload
+    }
+
+    app.get('/Transformers/:transformerName/:dataChecksum', async (req: express.Request, res: express.Response) => {
         try {
-            let transformed = await transformPayload(
-                transformerName,
-                dataChecksum,
-                context,
-            )
+            let transformed = await handleDataTransformationRequest(req)
             return res.json(transformed)
         } catch (error) {
             return res.json({
@@ -466,25 +479,8 @@ export function startWebserver(args: IYarguments = null) {
     })
 
     app.post('/transformPayload/:dataChecksum', async (req: express.Request, res: express.Response) => {
-        let combinedParams = {
-            ...req.params,
-            ...req.query,
-            ...getRawBodyJson(req),
-        }
-        let {
-            dataChecksum,
-            transformerName,
-        } = combinedParams
-        let context = combinedParams['context'] ?? {}
-        if (context['createdAt'] == null) {
-            context['createdAt'] = getCreatedAt(context)
-        }
         try {
-            let schemaTaggedPayload: SchemaTaggedPayload = await transformPayload(
-                transformerName,
-                dataChecksum,
-                context,
-            )
+            let schemaTaggedPayload: SchemaTaggedPayload = await handleDataTransformationRequest(req)
             let hash = getSha256(JSON.stringify(schemaTaggedPayload))
             return pouchSchemaTaggedPayloads.putIfNotExists({
                 _id: hash,
