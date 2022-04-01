@@ -48,7 +48,16 @@ in pkgs.mkShell {
     echo -e "\033[0;34m  generate-schema <some-data.json> to auto-generate a json schema \033[0m"
 
   '' + ''
+    . .env
     SERVER_ENDPOINT=http://localhost:1235
+
+    # FIXME reconcile with defs.ts / autogen
+    JSON_SCHEMAS_TABLE_NAME=json-schemas  # JsonSchemas
+    TRANSFORMERS_TABLE_NAME=transformers  # Transformers
+    SCHEMA_TAGGED_PAYLOADS_TABLE_NAME=schema-tagged-payloads  # SchemaTaggedPayloads
+
+    CURL_BASIC_AUTH="-u $COUCHDB_AUTH_USERNAME:$COUCHDB_AUTH_PASSWORD"
+
     # useful endpoints
     # $SERVER_ENDPOINT/api/_all_dbs
     # $SERVER_ENDPOINT/api/<dbname>/_all_docs
@@ -58,7 +67,7 @@ in pkgs.mkShell {
             return
         fi
         schema_path=$1
-        jsonnet $schema_path | curl -s -H 'Content-Type: application/json' $SERVER_ENDPOINT/JsonSchemas -d @- | jq
+        jsonnet $schema_path | curl $CURL_BASIC_AUTH -s -H 'Content-Type: application/json' $SERVER_ENDPOINT/$JSON_SCHEMAS_TABLE_NAME -d @- | jq
     }
 
     add-data-to-server() {
@@ -80,7 +89,7 @@ in pkgs.mkShell {
         fi
         schema_name=$1
         path_to_data=$2
-        curl -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/SchemaTaggedPayloads/$schema_name$created_at_string" -d@$path_to_data
+        curl $CURL_BASIC_AUTH -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/$SCHEMA_TAGGED_PAYLOADS_TABLE_NAME/$schema_name$created_at_string" -d@$path_to_data
     }
 
     render-transformed-data() {
@@ -121,7 +130,7 @@ in pkgs.mkShell {
 
         schema_name=$1            # MyResultantSchemaName
         render-transformed-data "$2" "$3" "$4" "$5" "$6" |
-            curl -H 'Content-Type: application/json' $SERVER_ENDPOINT/SchemaTaggedPayloads/$schema_name -d @-
+            curl $CURL_BASIC_AUTH -H 'Content-Type: application/json' $SERVER_ENDPOINT/$SCHEMA_TAGGED_PAYLOADS_TABLE_NAME/$schema_name -d @-
     }
 
     add-transformer-to-server() {
@@ -151,7 +160,7 @@ in pkgs.mkShell {
             esac
             shift
         done
-        curl -vvv $inputsarg $outputarg -F "file=@$source_file" $SERVER_ENDPOINT/Transformers
+        curl $CURL_BASIC_AUTH -vvv $inputsarg $outputarg -F "file=@$source_file" $SERVER_ENDPOINT/$TRANSFORMERS_TABLE_NAME
     }
   '' + ''
     # sqlite interaction
@@ -224,7 +233,7 @@ in pkgs.mkShell {
         fi
         hash=$1
         transformer=$2
-        curl -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/transformPayload/$hash$created_at_string" -d '{"transformerName": "'$transformer'"}'
+        curl $CURL_BASIC_AUTH -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/transformPayload/$hash$created_at_string" -d '{"transformerName": "'$transformer'"}'
     }
 
     apply-transform() {
@@ -258,14 +267,14 @@ in pkgs.mkShell {
             esac
             shift
         done
-        curl -vvv $inputsarg $outputarg -F "file=@$source_file" $SERVER_ENDPOINT/Transformers
+        curl $CURL_BASIC_AUTH -vvv $inputsarg $outputarg -F "file=@$source_file" $SERVER_ENDPOINT/$TRANSFORMERS_TABLE_NAME
     }
   '' + ''
     # couchdb
     setup-couchdb-sample-init() {
         crudini --set local.ini couchdb single_node true
         crudini --set local.ini couchdb database_dir $PWD
-        crudini --set local.ini admins admin mypassword
+        crudini --set local.ini admins $COUCHDB_AUTH_USERNAME $COUCHDB_AUTH_PASSWORD
     }
 
     alias start-couchdb='couchdb -couch_ini $PWD/local.ini'

@@ -23,6 +23,9 @@ import {
     SCHEMA_TAGGED_PAYLOADS_TABLE_NAME,
     TRANSFORMERS_TABLE_NAME,
 } from '../src/defs';
+import {
+    createProxyMiddleware,
+} from 'http-proxy-middleware'
 import { monkeyPatchConsole } from '../src/util';
 import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../src/transformer'
 monkeyPatchConsole()
@@ -37,9 +40,21 @@ monkeyPatchConsole()
 //     }
 // })
 
+/*
 let pouchSchemas = new PouchDB(JSON_SCHEMAS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
 let pouchTransformers = new PouchDB(TRANSFORMERS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
 let pouchSchemaTaggedPayloads = new PouchDB(SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
+/*/
+export const authConfig = {
+    auth: {
+        username: Config.COUCHDB_AUTH_USERNAME,
+        password: Config.COUCHDB_AUTH_PASSWORD,
+    }
+}
+let pouchSchemas = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + JSON_SCHEMAS_TABLE_NAME, authConfig)
+let pouchTransformers = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + TRANSFORMERS_TABLE_NAME, authConfig)
+let pouchSchemaTaggedPayloads = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, authConfig)
+// */
 
 const POUCHDB_BAD_REQUEST_RESPONSE = {  // this is copied from the error response from posting invalid JSON to express-pouchdb at /api
     error: "bad_request",
@@ -177,7 +192,15 @@ export function startWebserver(args: IYarguments = null) {
     const app = express()
     app.use(ExpressFileUpload())
 
-    const EXPRESS_POUCHDB_PREFIX = '/api'
+    app.use('/api', createProxyMiddleware({
+        target: Config.COUCHDB_SERVER_URL,
+        changeOrigin: true,
+        pathRewrite: { '^/api': '' },
+        auth: `${Config.COUCHDB_AUTH_USERNAME}:${Config.COUCHDB_AUTH_PASSWORD}`,
+    }))
+
+    // FIXME
+    const EXPRESS_POUCHDB_PREFIX = '/api-OLD-FIXME'
     const expressPouchDbHandler = ExpressPouchDb(PouchDbConfig, {
         logPath: Config.EXPRESS_POUCHDB_LOG_PATH,
     })
@@ -299,6 +322,7 @@ export function startWebserver(args: IYarguments = null) {
             let isValid: any
             isValid = ajv.validate(FIXME_SchemaHasTitleAndVersion, unvalidatedPayload)
             if (!isValid) {
+                console.warn(unvalidatedPayload)
                 throw new Error('failed on version and title precondition')
             }
             isValid = ajv.validateSchema(unvalidatedPayload)
