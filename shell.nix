@@ -13,6 +13,9 @@ in pkgs.mkShell {
     pkgs.yarn
     pkgs.miller
     # pkgs.deno
+
+    pkgs.couchdb3
+    pkgs.crudini
   ];
 
   nativeBuildInputs = [
@@ -257,7 +260,16 @@ in pkgs.mkShell {
         done
         curl -vvv $inputsarg $outputarg -F "file=@$source_file" $SERVER_ENDPOINT/Transformers
     }
+  '' + ''
+    # couchdb
+    setup-couchdb-sample-init() {
+        crudini --set local.ini couchdb single_node true
+        crudini --set local.ini couchdb database_dir $PWD
+        crudini --set local.ini admins admin mypassword
+    }
 
+    alias start-couchdb='couchdb -couch_ini $PWD/local.ini'
+  '' + ''
     echo-shortcuts ${__curPos.file}
   '';
 }
