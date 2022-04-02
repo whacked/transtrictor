@@ -269,6 +269,14 @@ in pkgs.mkShell {
         done
         curl $CURL_BASIC_AUTH -vvv $inputsarg $outputarg -F "file=@$source_file" $SERVER_ENDPOINT/$TRANSFORMERS_TABLE_NAME
     }
+
+    # web stuff
+    web-start-front() {
+      parcel app/index.html
+    }
+    web-start-back() {
+      ts-node app/webserver.ts
+    }
   '' + ''
     # couchdb
     setup-couchdb-sample-init() {

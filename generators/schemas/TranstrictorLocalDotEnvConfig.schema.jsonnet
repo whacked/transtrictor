@@ -24,6 +24,7 @@
     },
     COUCHDB_SERVER_URL: {
       type: 'string',
+      pattern: 'https?://.+?:\\d+',
       examples: [
         'http://localhost:5984',
       ],

@@ -40,21 +40,25 @@ monkeyPatchConsole()
 //     }
 // })
 
-/*
-let pouchSchemas = new PouchDB(JSON_SCHEMAS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
-let pouchTransformers = new PouchDB(TRANSFORMERS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
-let pouchSchemaTaggedPayloads = new PouchDB(SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
-/*/
-export const authConfig = {
-    auth: {
-        username: Config.COUCHDB_AUTH_USERNAME,
-        password: Config.COUCHDB_AUTH_PASSWORD,
+let pouchSchemas: PouchDB.Database
+let pouchTransformers: PouchDB.Database
+let pouchSchemaTaggedPayloads: PouchDB.Database
+
+if (Config.COUCHDB_SERVER_URL == null) {
+    pouchSchemas = new PouchDB(JSON_SCHEMAS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
+    pouchTransformers = new PouchDB(TRANSFORMERS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
+    pouchSchemaTaggedPayloads = new PouchDB(SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
+} else {
+    const authConfig = {
+        auth: {
+            username: Config.COUCHDB_AUTH_USERNAME,
+            password: Config.COUCHDB_AUTH_PASSWORD,
+        }
     }
+    pouchSchemas = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + JSON_SCHEMAS_TABLE_NAME, authConfig)
+    pouchTransformers = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + TRANSFORMERS_TABLE_NAME, authConfig)
+    pouchSchemaTaggedPayloads = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, authConfig)
 }
-let pouchSchemas = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + JSON_SCHEMAS_TABLE_NAME, authConfig)
-let pouchTransformers = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + TRANSFORMERS_TABLE_NAME, authConfig)
-let pouchSchemaTaggedPayloads = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, authConfig)
-// */
 
 const POUCHDB_BAD_REQUEST_RESPONSE = {  // this is copied from the error response from posting invalid JSON to express-pouchdb at /api
     error: "bad_request",
@@ -192,51 +196,54 @@ export function startWebserver(args: IYarguments = null) {
     const app = express()
     app.use(ExpressFileUpload())
 
-    app.use('/api', createProxyMiddleware({
-        target: Config.COUCHDB_SERVER_URL,
-        changeOrigin: true,
-        pathRewrite: { '^/api': '' },
-        auth: `${Config.COUCHDB_AUTH_USERNAME}:${Config.COUCHDB_AUTH_PASSWORD}`,
-    }))
+    const EXPRESS_COUCHDB_API_PREFIX = '/api'
 
-    // FIXME
-    const EXPRESS_POUCHDB_PREFIX = '/api-OLD-FIXME'
-    const expressPouchDbHandler = ExpressPouchDb(PouchDbConfig, {
-        logPath: Config.EXPRESS_POUCHDB_LOG_PATH,
-    })
+    if (Config.COUCHDB_SERVER_URL != null) {
+        app.use('/api', createProxyMiddleware({
+            target: Config.COUCHDB_SERVER_URL,
+            changeOrigin: true,
+            pathRewrite: { '^/api': '' },
+            auth: `${Config.COUCHDB_AUTH_USERNAME}:${Config.COUCHDB_AUTH_PASSWORD}`,
+        }))
+    } else {
+        const expressPouchDbHandler = ExpressPouchDb(PouchDbConfig, {
+            logPath: Config.EXPRESS_POUCHDB_LOG_PATH,
+        })
 
-    // hot fix to allow mounting express-pouchdb from non / path
-    // ref https://github.com/pouchdb/express-pouchdb/issues/290#issuecomment-265311015
-    // app.use(EXPRESS_POUCHDB_PREFIX, expressPouchDbHandler)
-    // /*
-    app.use((req: express.Request, res: express.Response, next: Function) => {
-        let referer = req.header('Referer')
-        let refererUrl: URL
-        if (referer != null) {
-            refererUrl = new URL(referer)
-        }
-        if (!req.url.startsWith(EXPRESS_POUCHDB_PREFIX)) {
-            if (/^\/(?:_utils|_session|_all_dbs|_users)/.test(refererUrl?.pathname || req.url)) {
-                return expressPouchDbHandler(req, res)
-                // } else if (req.url == '' && refererUrl?.pathname == `${EXPRESS_POUCHDB_PREFIX}/_utils/`) {
-                //     // non-working code in attempt to allow loading fauxon from /prefix/
-                //     // this doesn't work because the endpoint for resources for fauxson are hard-coded
-                //     // in the front-end javascript, and targets /_utils from the root addr
-                //     return expressPouchDbHandler(req, res)
-            } else {
-                return next()
+        // FIXME
+        // hot fix to allow mounting express-pouchdb from non / path
+        // ref https://github.com/pouchdb/express-pouchdb/issues/290#issuecomment-265311015
+        // app.use(EXPRESS_POUCHDB_PREFIX, expressPouchDbHandler)
+        // /*
+        app.use((req: express.Request, res: express.Response, next: Function) => {
+            let referer = req.header('Referer')
+            let refererUrl: URL
+            if (referer != null) {
+                refererUrl = new URL(referer)
             }
-        }
-        if (req.url.endsWith('/_utils')) {
-            // the pouch handler redirects non-slashed paths to the slashed path,
-            // back to the unqualified path (/_utils/), which does NOT have our handler
-            return res.redirect(req.originalUrl + '/')
-        }
-        let originalUrl = req.originalUrl
-        req.url = req.originalUrl = originalUrl.substring(EXPRESS_POUCHDB_PREFIX.length)  // [1/2] required for successful inner middleware call
-        req.baseUrl = ''  // [2/2] required for successful inner middleware call
-        return expressPouchDbHandler(req, res);
-    });
+            if (!req.url.startsWith(EXPRESS_COUCHDB_API_PREFIX)) {
+                if (/^\/(?:_utils|_session|_all_dbs|_users)/.test(refererUrl?.pathname || req.url)) {
+                    return expressPouchDbHandler(req, res)
+                    // } else if (req.url == '' && refererUrl?.pathname == `${EXPRESS_POUCHDB_PREFIX}/_utils/`) {
+                    //     // non-working code in attempt to allow loading fauxon from /prefix/
+                    //     // this doesn't work because the endpoint for resources for fauxson are hard-coded
+                    //     // in the front-end javascript, and targets /_utils from the root addr
+                    //     return expressPouchDbHandler(req, res)
+                } else {
+                    return next()
+                }
+            }
+            if (req.url.endsWith('/_utils')) {
+                // the pouch handler redirects non-slashed paths to the slashed path,
+                // back to the unqualified path (/_utils/), which does NOT have our handler
+                return res.redirect(req.originalUrl + '/')
+            }
+            let originalUrl = req.originalUrl
+            req.url = req.originalUrl = originalUrl.substring(EXPRESS_COUCHDB_API_PREFIX.length)  // [1/2] required for successful inner middleware call
+            req.baseUrl = ''  // [2/2] required for successful inner middleware call
+            return expressPouchDbHandler(req, res);
+        });
+    }
 
     app.use(express.json({
         verify: (req: express.Request, res: express.Response, buf: Buffer, encoding: string) => {  // capture raw body into request.rawBody
@@ -521,7 +528,7 @@ export function startWebserver(args: IYarguments = null) {
     })
 
     return app.listen(Config.API_SERVER_PORT, () => {
-        console.log(`data server running on port ${Config.API_SERVER_PORT}`)
+        console.log(`data server running on port ${Config.API_SERVER_PORT}; db: ${Config.COUCHDB_SERVER_URL ?? Config.POUCHDB_DATABASE_PREFIX}`)
     })
 }
 
