@@ -15,6 +15,7 @@
          "examples": [
             "http://localhost:5984"
          ],
+         "pattern": "https?://.+?:\\d+",
          "type": "string"
       },
       "EXPRESS_POUCHDB_LOG_PATH": {
