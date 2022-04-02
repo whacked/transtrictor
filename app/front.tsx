@@ -14,7 +14,7 @@ import * as jsondiffpatch from 'jsondiffpatch'
 import 'jsondiffpatch/dist/formatters-styles/html.css'
 import 'jsondiffpatch/dist/formatters-styles/annotated.css'
 import {
-    SchemaStatistic, SCHEMA_TABLE_NAME,
+    SchemaStatistic, SCHEMAS_TABLE_NAME,
 } from '../src/defs'
 
 export interface ExtendedResponse {
@@ -142,7 +142,7 @@ const MainComponent = () => {
     const [activeDatabase, setActiveDatabase] = useState<string>(null);
 
     useEffect(() => {
-        dbGetAllDocuments<SchemaStatistic>(SCHEMA_TABLE_NAME).then((response) => {
+        dbGetAllDocuments<SchemaStatistic>(SCHEMAS_TABLE_NAME).then((response) => {
             return response.rows
         }).then((rows): Array<SchemaStatistic> => {
             return rows.map((dbRow) => {
@@ -178,8 +178,9 @@ const MainComponent = () => {
     }, [leftDocument, rightDocument])
 
     let setComparisonDocument = (id: string, setter: Function) => {
-        loadDocument(SCHEMA_TABLE_NAME, id, documentLookup, setDocumentLookup).then((document: SchemaStatistic) => {
-            let reifiedSchema = JSON.parse(document.sourceCode)
+        loadDocument(SCHEMAS_TABLE_NAME, id, documentLookup, setDocumentLookup).then((document: any) => {
+            let schemaStatistic: SchemaStatistic = document  // fix the call chain signature; this is iffy
+            let reifiedSchema = JSON.parse(schemaStatistic.sourceCode)
             setter(reifiedSchema)
             return document
         })
