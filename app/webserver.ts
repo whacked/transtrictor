@@ -1,5 +1,6 @@
 import PouchDB from 'pouchdb'
 import express from 'express'
+import ExpressPouchDb from 'express-pouchdb'
 import ExpressFileUpload, { UploadedFile } from 'express-fileupload'
 import {
     PouchDbConfig,
@@ -123,10 +124,16 @@ export async function transformPayload(
     dataChecksum: string,
     context: any,
 ): Promise<SchemaTaggedPayload> {
-    let transformerRecord = await pouchTransformers.find({
-        selector: {
-            name: transformerName
+    let transformerRecord = await pouchTransformers.createIndex({
+        index: {
+            fields: ['name'],
         }
+    }).then(() => {
+        return pouchTransformers.find({
+            selector: {
+                name: transformerName
+            }
+        })
     }).then((result) => {
         return (<any>result.docs[0]) as Transformer
     })
@@ -135,11 +142,20 @@ export async function transformPayload(
         throw new Error(`no transformer named ${transformerName}`)
     }
 
-    let payload = await pouchSchemaTaggedPayloads.find({
-        selector: {
-            dataChecksum: dataChecksum,
+    let payload = await pouchSchemaTaggedPayloads.createIndex({
+        index: {
+            fields: ['dataChecksum'],
         }
+    }).then(() => {
+        return pouchSchemaTaggedPayloads.find({
+            selector: {
+                dataChecksum: dataChecksum,
+            }
+        })
     }).then((result) => {
+        if (result.docs.length > 1) {
+            throw new Error(`data checksum not unique! found ${result.docs.length} for checksum ${dataChecksum}`)
+        }
         return (<any>result.docs[0]) as SchemaTaggedPayload
     })
 
