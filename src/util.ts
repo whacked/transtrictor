@@ -1,6 +1,9 @@
 import fs from 'fs'
 import path from 'path'
 import chalk from 'chalk'
+import { sha256HexString } from './defs'
+import crypto from 'crypto'
+import { canonicalize as toCanonicalizedJson } from 'json-canonicalize'
 
 
 export function bailIfNotExists(filePath: string) {
@@ -65,4 +68,16 @@ export function monkeyPatchConsole() {
         };
     });
     isPatched = true;
+}
+
+export const getSha256 = memoizerific(1000)((content: string): sha256HexString => {
+    return crypto.createHash('sha256').update(content).digest('hex')
+})
+
+export function getJcsSha256(data: any): string {
+    return getSha256(toCanonicalizedJson(data))
+}
+
+export function toSha256Checksum(data: any): string {
+    return `sha256:${toSha256Checksum(data)}`
 }

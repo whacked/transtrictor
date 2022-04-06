@@ -7,6 +7,7 @@ import {
     POUCHDB_ADAPTER_CONFIG,
     SchemaStatisticsLoader,
 } from '../src/docdb'
+import { canonicalize as canonicalizeJson } from 'json-canonicalize'
 import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { validateDataWithSchema, ValidationResult } from '../src/jsvg-lib';
@@ -15,7 +16,6 @@ import { SchemaTaggedPayload } from '../src/autogen/interfaces/anthology/2022/03
 import { Transformer } from '../src/autogen/interfaces/anthology/2022/03/30/Transformer'
 import Ajv from 'ajv';
 import Draft04Schema from 'json-metaschema/draft-04-schema.json'
-import { getSha256 } from '../src/database';
 import {
     Config,
     CURRENT_PROTOCOL_VERSION,
@@ -26,7 +26,7 @@ import {
 import {
     createProxyMiddleware,
 } from 'http-proxy-middleware'
-import { monkeyPatchConsole } from '../src/util';
+import { getJcsSha256, monkeyPatchConsole, toSha256Checksum } from '../src/util';
 import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../src/transformer'
 monkeyPatchConsole()
 
@@ -76,10 +76,6 @@ export const FIXME_SchemaHasTitleAndVersion = {
         },
     },
     required: ['title', 'version'],
-}
-
-function toSha256Checksum(data: any) {
-    return `sha256:${getSha256(data)}`
 }
 
 function stripPouchDbMetadataFields_BANG(record: any): any {
@@ -347,7 +343,7 @@ export function startWebserver(args: IYarguments = null) {
             })
         }
 
-        let hash = getSha256(JSON.stringify(unvalidatedPayload))
+        let hash = getJcsSha256(unvalidatedPayload)
         return pouchSchemas.put({
             _id: hash,
             ...unvalidatedPayload,
@@ -453,7 +449,7 @@ export function startWebserver(args: IYarguments = null) {
                 schemaName: schema['title'],
                 schemaVersion: schema['version'],
             }
-            let hash = getSha256(JSON.stringify(schemaTaggedPayload))
+            let hash = getJcsSha256(schemaTaggedPayload)
             return pouchSchemaTaggedPayloads.putIfNotExists({
                 _id: hash,
                 ...schemaTaggedPayload,
@@ -512,7 +508,7 @@ export function startWebserver(args: IYarguments = null) {
     app.post('/transformPayload/:dataChecksum', async (req: express.Request, res: express.Response) => {
         try {
             let schemaTaggedPayload: SchemaTaggedPayload = await handleDataTransformationRequest(req)
-            let hash = getSha256(JSON.stringify(schemaTaggedPayload))
+            let hash = getJcsSha256(schemaTaggedPayload)
             return pouchSchemaTaggedPayloads.putIfNotExists({
                 _id: hash,
                 ...schemaTaggedPayload,
