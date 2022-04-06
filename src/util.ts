@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import chalk from 'chalk'
+import memoizerific from 'memoizerific'
 import { sha256HexString } from './defs'
 import crypto from 'crypto'
 import { canonicalize as toCanonicalizedJson } from 'json-canonicalize'
@@ -79,5 +80,5 @@ export function getJcsSha256(data: any): string {
 }
 
 export function toSha256Checksum(data: any): string {
-    return `sha256:${toSha256Checksum(data)}`
+    return `sha256:${getJcsSha256(data)}`
 }

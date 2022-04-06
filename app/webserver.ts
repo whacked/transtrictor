@@ -165,14 +165,15 @@ export async function transformPayload(
     let transformer = makeTransformer(transformerRecord.language as TransformerLanguage, transformerRecord.sourceCode)
 
     return transformer.transform(wrapTransformationContext(payload.data, context)).then((transformed) => {
-        return unwrapTransformationContext(transformed)
+        return unwrapTransformationContext<SchemaTaggedPayload>(transformed)
     }).then((unwrapped) => {
+        const transformedDataChecksum = toSha256Checksum(unwrapped.data)
         // TAG WRAPPING HAPPENS HERE
         let schemaTaggedPayload: SchemaTaggedPayload = {
             protocolVersion: CURRENT_PROTOCOL_VERSION,
-            dataChecksum,
+            dataChecksum: transformedDataChecksum,  // TODO test that post-transform checksum != input checksum (unless fixed point!?)
             createdAt: context['createdAt'] ?? Date.now() / 1e3,
-            data: unwrapped,
+            data: unwrapped.data,
             schemaName: outputSchemaName,
             schemaVersion: outputSchemaVersion,
         }
