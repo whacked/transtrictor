@@ -1,6 +1,5 @@
 import PouchDB from 'pouchdb'
 import express from 'express'
-import ExpressPouchDb from 'express-pouchdb'
 import ExpressFileUpload, { UploadedFile } from 'express-fileupload'
 import {
     PouchDbConfig,
@@ -202,6 +201,7 @@ export function startWebserver(args: IYarguments = null) {
             auth: `${Config.COUCHDB_AUTH_USERNAME}:${Config.COUCHDB_AUTH_PASSWORD}`,
         }))
     } else {
+        const ExpressPouchDb = require('express-pouchdb')
         const expressPouchDbHandler = ExpressPouchDb(PouchDbConfig, {
             logPath: Config.EXPRESS_POUCHDB_LOG_PATH,
         })
