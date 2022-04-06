@@ -12,6 +12,9 @@ export const TRANSFORMERS_TABLE_NAME = 'transformers'  // 'Transformers'
 export const SCHEMA_TAGGED_PAYLOADS_TABLE_NAME = 'schema-tagged-payloads'  // 'SchemaTaggedPayloads'
 export const CURRENT_PROTOCOL_VERSION = '2022-03-25.1'
 
+
+export type sha256HexString = string
+
 export interface SchemaStatistic {
     firstAppearedAt: any,
     lastAppearedAt?: any,

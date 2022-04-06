@@ -1,7 +1,6 @@
 import PouchDB from 'pouchdb'
 import * as GenerateSchema from 'generate-schema';
 import { canonicalize } from 'json-canonicalize';
-import { getSha256 } from '../src/database';
 import {
     Config,
     ExtendedResponse,
@@ -9,6 +8,7 @@ import {
     SchemaStatistic,
     SCHEMAS_TABLE_NAME,
 } from './defs';
+import { getSha256 } from './util';
 
 
 export const POUCHDB_ADAPTER_CONFIG = (Config.POUCHDB_DATABASE_PREFIX ?? ':memory:') == ':memory:'

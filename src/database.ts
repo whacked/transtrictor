@@ -5,7 +5,6 @@ import * as col from 'colorette'
 import Knex from 'knex'
 import { JSONSchema } from '@apidevtools/json-schema-ref-parser'
 import memoizerific from 'memoizerific'
-import crypto from 'crypto'
 import DatabaseJoinSpec from './autogen/databaseJoinSpec.json'
 import { CacheableInputSourceSchema } from './autogen/interfaces/CacheableInputSource'
 import { CacheableDataResultSchema } from './autogen/interfaces/CacheableDataResult'
@@ -16,9 +15,10 @@ import CacheableDataResult from './autogen/schemas/CacheableDataResult.schema.js
 import JsonSchemaRecord from './autogen/schemas/JsonSchemaRecord.schema.json'
 import { unflatten } from 'flat'
 import { validateDataWithSchema } from './jsvg-lib'
-import { slurp } from './util'
+import { getSha256, getJcsSha256, slurp } from './util'
 import { Transformer, unwrapTransformationContext, wrapTransformationContext } from './transformer'
 import fastGlob from 'fast-glob'
+import { sha256HexString } from './defs'
 
 
 const AUTOGEN_SCHEMAS_DIRECTORY = path.join(path.dirname(__filename), 'autogen/schemas')
@@ -295,22 +295,10 @@ export async function generateTablesFromSchemas(knexInstance: KnexLib.Knex, json
     }
 }
 
-type sha256HexString = string
-
-
-export const getSha256 = memoizerific(1000)((content: string): sha256HexString => {
-    return crypto.createHash('sha256').update(content).digest('hex')
-})
-
 export class KnexDbInterface {
 
     knexQueryable: KnexQueryable
     getOrCreateJsonSchema: (jsonSchemaSource: string) => Promise<sha256HexString>
-
-    static getObjectHash(obj: any): string {
-        let canonicalJson = canonicalize(obj)
-        return getSha256(canonicalJson)
-    }
 
     constructor(private readonly knexInstance: KnexLib.Knex) {
         const joinSpec: JoinSpec = DatabaseJoinSpec
@@ -366,7 +354,7 @@ export async function ensureHashableObjectInDatabase(
         | Omit<CacheableDataResultSchema, 'id'>
         | Omit<JsonSchemaRecordSchema, 'id'>,
 ): Promise<QueryStatus> {
-    let sha256 = KnexDbInterface.getObjectHash(hashableObject)
+    let sha256 = getJcsSha256(hashableObject)
     const selectResult = await knexDbi.knexQueryable.expandQuery(
         {
             [tableName]: [
