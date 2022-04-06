@@ -233,7 +233,7 @@ in pkgs.mkShell {
         fi
         hash=$1
         transformer=$2
-        curl $CURL_BASIC_AUTH -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/transformPayload/$hash$created_at_string" -d '{"transformerName": "'$transformer'"}'
+        curl $CURL_BASIC_AUTH -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/transformAndStorePayload/$hash$created_at_string" -d '{"transformerName": "'$transformer'"}'
     }
 
     apply-transform() {

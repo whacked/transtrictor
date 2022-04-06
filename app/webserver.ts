@@ -522,7 +522,7 @@ export function startWebserver(args: IYarguments = null) {
         }
     })
 
-    app.post('/transformPayload/:dataChecksum', async (req: express.Request, res: express.Response) => {
+    app.post('/transformAndStorePayload/:dataChecksum', async (req: express.Request, res: express.Response) => {
         try {
             let schemaTaggedPayload: SchemaTaggedPayload = await handleDataTransformationRequest(req)
             let hash = getJcsSha256(schemaTaggedPayload)
