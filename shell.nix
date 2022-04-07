@@ -280,8 +280,15 @@ in pkgs.mkShell {
   '' + ''
     # couchdb
     setup-couchdb-sample-init() {
+        COUCHDB_BASE_DIR=''${1-$PWD/couchdb}
+        if [ ! -e $COUCHDB_BASE_DIR ]; then
+            echo "INFO: creating couchdb working directory: $COUCHDB_BASE_DIR"
+            mkdir -p $COUCHDB_BASE_DIR
+        fi
+        
         crudini --set local.ini couchdb single_node true
-        crudini --set local.ini couchdb database_dir $PWD
+        crudini --set local.ini couchdb database_dir $COUCHDB_BASE_DIR/data
+        crudini --set local.ini couchdb view_index_dir $COUCHDB_BASE_DIR/index
         crudini --set local.ini admins $COUCHDB_AUTH_USERNAME $COUCHDB_AUTH_PASSWORD
     }
 
