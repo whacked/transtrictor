@@ -8,7 +8,7 @@ import {
     loadTransformerFile, unwrapTransformationContext, wrapTransformationContext
 } from '../src/transformer';
 import * as readline from 'readline'
-import { bailIfNotExists, slurp } from '../src/util';
+import { bailIfNotExists, readStdin, slurp } from '../src/util';
 import { monkeyPatchConsole } from '../src/util';
 monkeyPatchConsole()
 
@@ -81,20 +81,6 @@ export class ArgParser<T> {
         let args: any = this.argParser.parseSync()
         return args as T
     }
-}
-
-function readStdin(): Promise<string> {
-    process.stdin.resume();
-    process.stdin.setEncoding('utf-8');
-    let readBuffer: string = ''
-    return new Promise((resolve, reject) => {
-        process.stdin.on('data', inputData => {
-            readBuffer += inputData
-        })
-        process.stdin.on('end', _ => {
-            resolve(readBuffer)
-        })
-    })
 }
 
 async function readStdinOrFile(inputString: string): Promise<string> {
