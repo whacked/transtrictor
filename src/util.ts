@@ -7,6 +7,20 @@ import crypto from 'crypto'
 import { canonicalize as toCanonicalizedJson } from 'json-canonicalize'
 
 
+export function readStdin(): Promise<string> {
+    process.stdin.resume();
+    process.stdin.setEncoding('utf-8');
+    let readBuffer: string = ''
+    return new Promise((resolve, reject) => {
+        process.stdin.on('data', inputData => {
+            readBuffer += inputData
+        })
+        process.stdin.on('end', _ => {
+            resolve(readBuffer)
+        })
+    })
+}
+
 export function bailIfNotExists(filePath: string) {
     if (!fs.existsSync(filePath)) {
         throw new Error(`file "${filePath}" does not exist`)
