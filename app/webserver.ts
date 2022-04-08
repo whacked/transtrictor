@@ -28,37 +28,42 @@ import {
 } from 'http-proxy-middleware'
 import { getJcsSha256, monkeyPatchConsole, toSha256Checksum } from '../src/util';
 import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../src/transformer'
+import { PouchDatabase } from '../src/xouchdb'
+import { JsonDatabase } from '../src/jsonstore'
+import { ArangoDatabase } from '../src/arangodb'
 monkeyPatchConsole()
 
 
-// get all docs in the db:
-// pouchSchemas.allDocs({
-//     include_docs: true,
-// }).then((results) => {
-//     for (const row of results.rows) {
-//         console.log(row.doc)
-//     }
-// })
-
-let pouchSchemas: PouchDB.Database
-let pouchTransformers: PouchDB.Database
-let pouchSchemaTaggedPayloads: PouchDB.Database
-
-if (Config.COUCHDB_SERVER_URL == null) {
-    pouchSchemas = new PouchDB(JSON_SCHEMAS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
-    pouchTransformers = new PouchDB(TRANSFORMERS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
-    pouchSchemaTaggedPayloads = new PouchDB(SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
+let jsonDatabase: JsonDatabase | ArangoDatabase
+let databaseServerLocation: string
+if (Config.ARANGODB_SERVER_URL != null) {
+    jsonDatabase = new ArangoDatabase();
+    (<ArangoDatabase>jsonDatabase).setupCollections()
+    databaseServerLocation = `[arango] ${Config.ARANGODB_SERVER_URL}`
 } else {
-    const authConfig = {
-        auth: {
-            username: Config.COUCHDB_AUTH_USERNAME,
-            password: Config.COUCHDB_AUTH_PASSWORD,
-        }
+    jsonDatabase = new PouchDatabase()
+    if (Config.COUCHDB_SERVER_URL != null) {
+        databaseServerLocation = `[couchdb] ${Config.COUCHDB_SERVER_URL}`
+    } else {
+        databaseServerLocation = `[pouchdb] ${Config.POUCHDB_DATABASE_PREFIX}`
     }
-    pouchSchemas = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + JSON_SCHEMAS_TABLE_NAME, authConfig)
-    pouchTransformers = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + TRANSFORMERS_TABLE_NAME, authConfig)
-    pouchSchemaTaggedPayloads = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, authConfig)
 }
+if (jsonDatabase == null) {
+    throw new Error('you must initialize the json database object!')
+}
+
+// setTimeout(() => {
+//     let adb: ArangoDatabase = jsonDatabase as ArangoDatabase
+//     adb.database.query({
+//         query: `FOR schema in \`json-schemas\` RETURN schema`,
+//         bindVars: {}
+//     }).then((val) => {
+//         console.log(val)
+//         return val.next()
+//     }).then((thing) => {
+//         console.log(thing)
+//     })
+// }, 2222)
 
 const POUCHDB_BAD_REQUEST_RESPONSE = {  // this is copied from the error response from posting invalid JSON to express-pouchdb at /api
     error: "bad_request",
@@ -78,12 +83,6 @@ export const FIXME_SchemaHasTitleAndVersion = {
     required: ['title', 'version'],
 }
 
-function stripPouchDbMetadataFields_BANG(record: any): any {
-    delete record['_id']
-    delete record['_rev']
-    return record
-}
-
 function getDraft04SchemaValidator(): Ajv {
     let ajv = new Ajv()
     let schemaKey = Draft04Schema['$schema']
@@ -100,103 +99,7 @@ function getDraft04SchemaValidator(): Ajv {
     return ajv
 }
 
-function findSchema(schemaName: string, schemaVersion: string = null) {
-    return pouchSchemas.find({
-        selector: {
-            title: schemaName,
-            ...(schemaVersion == null ? null : {}),
-        },
-    })
-}
 
-async function findLatestMatchingSchema(schemaName: string) {
-    return findSchema(schemaName).then((result) => {
-        if (result.docs.length > 0) {
-            return result.docs[0]
-        }
-        return null
-    })
-}
-
-// FIXME MOVEME
-export async function transformPayload(
-    transformerName: string,
-    dataChecksum: string,
-    context: any,
-): Promise<SchemaTaggedPayload> {
-    let transformerRecord = await pouchTransformers.createIndex({
-        index: {
-            fields: ['name'],
-        }
-    }).then(() => {
-        return pouchTransformers.find({
-            selector: {
-                name: transformerName
-            }
-        })
-    }).then((result) => {
-        return (<any>result.docs[0]) as Transformer
-    })
-
-    if (transformerRecord == null) {
-        throw new Error(`no transformer named ${transformerName}`)
-    }
-
-    let payload = await pouchSchemaTaggedPayloads.createIndex({
-        index: {
-            fields: ['dataChecksum'],
-        }
-    }).then(() => {
-        return pouchSchemaTaggedPayloads.find({
-            selector: {
-                dataChecksum: dataChecksum,
-            }
-        })
-    }).then((result) => {
-        if (result.docs.length > 1) {
-            throw new Error(`data checksum not unique! found ${result.docs.length} for checksum ${dataChecksum}`)
-        }
-        return (<any>result.docs[0]) as SchemaTaggedPayload
-    })
-
-    if (payload == null) {
-        throw new Error(`no data with checksum ${dataChecksum}`)
-    }
-
-    let outputSchema = await pouchSchemas.find({
-        selector: {
-            title: transformerRecord.outputSchema,
-        }
-    }).then((result) => {
-        return (<any>result.docs[0])
-    })
-
-    if (outputSchema == null) {
-        throw new Error(`no output schema matching ${transformerRecord.outputSchema}`)
-    }
-
-    let outputSchemaName = outputSchema.title
-    let outputSchemaVersion = outputSchema.version
-
-    let transformer = makeTransformer(transformerRecord.language as TransformerLanguage, transformerRecord.sourceCode)
-
-    return transformer.transform(wrapTransformationContext(payload.data, context)).then((transformed) => {
-        return unwrapTransformationContext<SchemaTaggedPayload>(transformed)
-    }).then((unwrapped) => {
-        const transformedDataChecksum = toSha256Checksum(unwrapped.data)
-        // TAG WRAPPING HAPPENS HERE
-        let schemaTaggedPayload: SchemaTaggedPayload = {
-            protocolVersion: CURRENT_PROTOCOL_VERSION,
-            dataChecksum: transformedDataChecksum,  // TODO test that post-transform checksum != input checksum (unless fixed point!?)
-            createdAt: context['createdAt'] ?? Date.now() / 1e3,
-            data: unwrapped.data,
-            schemaName: outputSchemaName,
-            schemaVersion: outputSchemaVersion,
-        }
-        return schemaTaggedPayload
-    })
-
-}
 
 // this isn't being used downstream anywhere
 interface IYarguments {
@@ -217,8 +120,7 @@ export function startWebserver(args: IYarguments = null) {
             pathRewrite: { '^/api': '' },
             auth: `${Config.COUCHDB_AUTH_USERNAME}:${Config.COUCHDB_AUTH_PASSWORD}`,
         }))
-    } else {
-        const ExpressPouchDb = require('express-pouchdb')
+    } else if (Config.ARANGODB_SERVER_URL == null) {
         const expressPouchDbHandler = ExpressPouchDb(PouchDbConfig, {
             logPath: Config.EXPRESS_POUCHDB_LOG_PATH,
         })
@@ -226,8 +128,10 @@ export function startWebserver(args: IYarguments = null) {
         // FIXME
         // hot fix to allow mounting express-pouchdb from non / path
         // ref https://github.com/pouchdb/express-pouchdb/issues/290#issuecomment-265311015
-        // app.use(EXPRESS_POUCHDB_PREFIX, expressPouchDbHandler)
+        // app.use('/', expressPouchDbHandler)
+        // app.use(EXPRESS_COUCHDB_API_PREFIX, expressPouchDbHandler)
         // /*
+        // this is not working anymore
         app.use((req: express.Request, res: express.Response, next: Function) => {
             let referer = req.header('Referer')
             let refererUrl: URL
@@ -235,8 +139,16 @@ export function startWebserver(args: IYarguments = null) {
                 refererUrl = new URL(referer)
             }
             if (!req.url.startsWith(EXPRESS_COUCHDB_API_PREFIX)) {
-                if (/^\/(?:_utils|_session|_all_dbs|_users)/.test(refererUrl?.pathname || req.url)) {
+                // console.log('checking the url', refererUrl?.pathname, req.url)
+
+                // if (/^\/(?:_utils|_session|_all_dbs|_users)/.test(refererUrl?.pathname ?? req.url)) {
+                if (/^\/(?:_utils|_session|_all_dbs|_users)/.test(req.url)
+                    || refererUrl?.pathname?.startsWith(EXPRESS_COUCHDB_API_PREFIX)) {
+                    console.log('matches the special route', req.url)
                     return expressPouchDbHandler(req, res)
+                    // FIXME FIXME
+                    // was there this one route hack you had to apply??? look in git history
+
                     // } else if (req.url == '' && refererUrl?.pathname == `${EXPRESS_POUCHDB_PREFIX}/_utils/`) {
                     //     // non-working code in attempt to allow loading fauxon from /prefix/
                     //     // this doesn't work because the endpoint for resources for fauxson are hard-coded
@@ -246,7 +158,9 @@ export function startWebserver(args: IYarguments = null) {
                     return next()
                 }
             }
-            if (req.url.endsWith('/_utils')) {
+            if (req.url.replace(/^\//, '').endsWith('/_utils')) {
+                // console.log('utils', req.url)
+
                 // the pouch handler redirects non-slashed paths to the slashed path,
                 // back to the unqualified path (/_utils/), which does NOT have our handler
                 return res.redirect(req.originalUrl + '/')
@@ -256,6 +170,10 @@ export function startWebserver(args: IYarguments = null) {
             req.baseUrl = ''  // [2/2] required for successful inner middleware call
             return expressPouchDbHandler(req, res);
         });
+
+        // enable fauxton from /_utils
+        // NOTE this breaks everything else!
+        app.use(expressPouchDbHandler)
     }
 
     app.use(express.json({
@@ -275,7 +193,6 @@ export function startWebserver(args: IYarguments = null) {
     }
 
     app.post(`/${TRANSFORMERS_TABLE_NAME}`, async (req: express.Request, res: express.Response) => {
-
         let maybeFile = req.files?.file as UploadedFile
         if (maybeFile == null) {
             return res.json({
@@ -298,7 +215,7 @@ export function startWebserver(args: IYarguments = null) {
 
         let errors = []
         if (req.body.outputSchema != null) {
-            await findLatestMatchingSchema(req.body.outputSchema).then((doc) => {
+            await jsonDatabase.findLatestMatchingSchema(req.body.outputSchema).then((doc) => {
                 if (doc == null) {
                     errors.push(`did not find any schema matching output schema "${req.body.outputSchema}"`)
                 }
@@ -308,7 +225,7 @@ export function startWebserver(args: IYarguments = null) {
         if (req.body.inputSchemas != null) {
             let inputSchemaNames = req.body.inputSchemas.split(',').map((s: string) => s.trim())
             for (const inputSchemaName of inputSchemaNames) {
-                await findLatestMatchingSchema(inputSchemaName).then((doc) => {
+                await jsonDatabase.findLatestMatchingSchema(inputSchemaName).then((doc) => {
                     if (doc == null) {
                         errors.push(`did not find any schema matching input schema "${inputSchemaName}"`)
                     }
@@ -324,10 +241,7 @@ export function startWebserver(args: IYarguments = null) {
             })
         }
 
-        return pouchTransformers.put({
-            _id: transformerRecord.sourceCodeChecksum,
-            ...transformerRecord,
-        }).then((response) => {
+        return jsonDatabase.putTransformer(transformerRecord).then((response) => {
             return res.json(response)
         }).catch((error) => {
             return res.json(error)
@@ -360,47 +274,23 @@ export function startWebserver(args: IYarguments = null) {
             })
         }
 
-        let hash = getJcsSha256(unvalidatedPayload)
-        return pouchSchemas.put({
-            _id: hash,
-            ...unvalidatedPayload,
-        }).then((response) => {
-            pouchSchemas.allDocs().then((out) => {
-                for (let row of out.rows) {
-                    break
-                }
+        return jsonDatabase.putSchema(unvalidatedPayload)
+            .then((response) => {
+                return res.json(response)
+            }).catch((error) => {
+                console.log(error)
+                return res.json(error)
             })
-            return res.json(response)
-        }).catch((error) => {
-            console.log(error)
-            return res.json(error)
-        })
     })
 
     app.get(`/${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}/:schemaNameMaybeWithVersion`, async (req: express.Request, res: express.Response) => {
         let [schemaName, schemaVersion] = req.params['schemaNameMaybeWithVersion'].split('@')
-
-        // FIXME also match on given version
-        let schema = await pouchSchemaTaggedPayloads.createIndex({
-            index: {
-                fields: ['version', 'title'],
-            }
-        }).then(() => {
-            return pouchSchemaTaggedPayloads.find({
-                selector: {
-                    title: schemaName,
-                    ...(schemaVersion == null ? null : {}),
-                },
-                // can't get this to work yet:
-                // Error: Cannot sort on field(s) "version" when using the default index
-                // sort: ['version'],
-            })
-        }).then((result) => {
-            return result.docs[0]
-        })
-
-        if (schema != null) {
-            return res.json(stripPouchDbMetadataFields_BANG(schema))
+        // this used to look for schemas inside SchemaTaggedPayload... verify this!
+        let maybeSchema = await jsonDatabase.getSchema(
+            schemaName, schemaVersion
+        )
+        if (maybeSchema != null) {
+            return res.json(maybeSchema)
         } else {
             return res.json({
                 status: 'error',
@@ -413,25 +303,10 @@ export function startWebserver(args: IYarguments = null) {
         let [schemaName, schemaVersion] = req.params['schemaNameMaybeWithVersion'].split('@')
         let createdAt: number = req.query['createdAt'] == null ? Date.now() / 1e3 : parseFloat(req.query['createdAt'] as string)
 
-        // FIXME also match on given version
-        let schema = await pouchSchemas.createIndex({
-            index: {
-                fields: ['version', 'title'],
-            }
-        }).then(() => {
-            return findSchema(schemaName, schemaVersion)
-        }).then((result) => {
-            if (result.docs.length > 0) {
-                // should pick the latest one!
-                let out = result.docs[result.docs.length - 1]
-                // FIXME double check this
-                stripPouchDbMetadataFields_BANG(out)
-                return out
-            }
-            return null
-        })
-
-        if (schema == null) {
+        let maybeSchema = await jsonDatabase.getSchema(
+            schemaName, schemaVersion
+        )
+        if (maybeSchema == null) {
             return res.json({
                 status: 'error',
                 message: `no such schema: ${schemaName}`,
@@ -441,8 +316,8 @@ export function startWebserver(args: IYarguments = null) {
         let validationResult: ValidationResult
         let unvalidatedPayload = getRawBodyJson(req)
         try {
-            delete schema['$schema']
-            validationResult = await validateDataWithSchema(unvalidatedPayload, schema)
+            delete maybeSchema['$schema']
+            validationResult = await validateDataWithSchema(unvalidatedPayload, maybeSchema)
         } catch (e) {
             console.error(e)
             return res.json(POUCHDB_BAD_REQUEST_RESPONSE)
@@ -463,19 +338,17 @@ export function startWebserver(args: IYarguments = null) {
                 dataChecksum,
                 createdAt,
                 data: unvalidatedPayload,
-                schemaName: schema['title'],
-                schemaVersion: schema['version'],
+                schemaName: maybeSchema['title'],
+                schemaVersion: maybeSchema['version'],
             }
-            let hash = getJcsSha256(schemaTaggedPayload)
-            return pouchSchemaTaggedPayloads.putIfNotExists({
-                _id: hash,
-                ...schemaTaggedPayload,
-            }).then((result) => {
-                return res.json({
-                    ...result,
-                    dataChecksum,  // RISKY: this is not a standard return and is not schematized. drift risk
+
+            return jsonDatabase.putSchemaTaggedPayload(schemaTaggedPayload)
+                .then((result) => {
+                    return res.json({
+                        ...result,
+                        dataChecksum,  // RISKY: this is not a standard return and is not schematized. drift risk
+                    })
                 })
-            })
         }
     })
 
@@ -501,7 +374,7 @@ export function startWebserver(args: IYarguments = null) {
             context['createdAt'] = getCreatedAt(combinedParams)
         }
 
-        let schemaTaggedPayload: SchemaTaggedPayload = await transformPayload(
+        let schemaTaggedPayload: SchemaTaggedPayload = await jsonDatabase.transformPayload(
             transformerName,
             dataChecksum,
             context,
@@ -525,13 +398,10 @@ export function startWebserver(args: IYarguments = null) {
     app.post('/transformAndStorePayload/:dataChecksum', async (req: express.Request, res: express.Response) => {
         try {
             let schemaTaggedPayload: SchemaTaggedPayload = await handleDataTransformationRequest(req)
-            let hash = getJcsSha256(schemaTaggedPayload)
-            return pouchSchemaTaggedPayloads.putIfNotExists({
-                _id: hash,
-                ...schemaTaggedPayload,
-            }).then((result) => {
-                return res.json(result)
-            })
+            return jsonDatabase.putSchemaTaggedPayload(schemaTaggedPayload)
+                .then((result) => {
+                    return res.json(result)
+                })
         } catch (e) {
             return res.json({
                 status: 'error',
@@ -541,7 +411,7 @@ export function startWebserver(args: IYarguments = null) {
     })
 
     return app.listen(Config.API_SERVER_PORT, () => {
-        console.log(`data server running on port ${Config.API_SERVER_PORT}; db: ${Config.COUCHDB_SERVER_URL ?? Config.POUCHDB_DATABASE_PREFIX}`)
+        console.log(`data server running on port ${Config.API_SERVER_PORT}; db: ${databaseServerLocation}`)
     })
 }
 

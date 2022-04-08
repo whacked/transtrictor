@@ -1,6 +1,7 @@
 { pkgs ? import <nixpkgs> {} }:
 
 let
+  arangodb = import ./nix/arangodb.nix {};
   nixShortcuts = (builtins.fetchurl {
     url = "https://raw.githubusercontent.com/whacked/setup/2d55546118ec3a57bdfda1861458ab8bce8c9c38/bash/nix_shortcuts.sh";
     sha256 = "11h3dipdrd2ym4ar59q3fligdmqhb5zzbbhnymi9vjdsgcs565iw";
@@ -16,7 +17,7 @@ in pkgs.mkShell {
 
     pkgs.couchdb3
     pkgs.crudini
-  ];
+  ] ++ arangodb.buildInputs;
 
   nativeBuildInputs = [
     nixShortcuts
@@ -24,7 +25,7 @@ in pkgs.mkShell {
     ~/setup/bash/jsonnet_shortcuts.sh
   ];
 
-  shellHook = ''
+  shellHook = arangodb.shellHook + ''
     export PATH=$(yarn bin):$PATH
 
     run-cli-tests() {
