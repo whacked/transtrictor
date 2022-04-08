@@ -5,7 +5,6 @@ import {
     ensureRawDataInDatabase,
     generateTablesFromSchemas,
     getDatabaseModelsJsonSchemas,
-    getSha256,
     KnexDbInterface,
     loadEnvDefinedDatabase,
     runDataImportProcessForInputSource,
@@ -14,7 +13,7 @@ import {
     unflattenToType
 } from '../src/database'
 import { loadTransformerFile, unwrapTransformationContext, wrapTransformationContext } from '../src/transformer'
-import { slurp } from '../src/util'
+import { getSha256, slurp } from '../src/util'
 import { getTestFilePath } from './common'
 import CacheableDataResult from '../src/autogen/schemas/CacheableDataResult.schema.json'
 import { unflatten } from 'flat'

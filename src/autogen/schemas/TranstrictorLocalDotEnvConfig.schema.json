@@ -3,7 +3,22 @@
    "properties": {
       "API_SERVER_PORT": {
          "default": 1235,
+         "description": "where the api server listens for requests",
          "type": "number"
+      },
+      "ARANGODB_AUTH_PASSWORD": {
+         "type": "string"
+      },
+      "ARANGODB_AUTH_USERNAME": {
+         "type": "string"
+      },
+      "ARANGODB_SERVER_URL": {
+         "default": "http://localhost:8529",
+         "examples": [
+            "http://localhost:8529"
+         ],
+         "pattern": "https?://.+?:\\d+",
+         "type": "string"
       },
       "COUCHDB_AUTH_PASSWORD": {
          "type": "string"

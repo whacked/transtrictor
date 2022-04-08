@@ -1,7 +1,15 @@
+local urlPattern = 'https?://.+?:\\d+';
+
 {
   type: 'object',
   description: '.env config for transtrictor local utils (webserver, pouchdb)',
   properties: {
+    API_SERVER_PORT: {
+      type: 'number',
+      default: 1235,
+      description: 'where the api server listens for requests',
+    },
+
     POUCHDB_DATABASE_PREFIX: {
       examples: [
         ':memory:',
@@ -18,13 +26,10 @@
       type: 'string',
       default: 'express-pouchdb.log',
     },
-    API_SERVER_PORT: {
-      type: 'number',
-      default: 1235,
-    },
+
     COUCHDB_SERVER_URL: {
       type: 'string',
-      pattern: 'https?://.+?:\\d+',
+      pattern: urlPattern,
       examples: [
         'http://localhost:5984',
       ],
@@ -33,6 +38,21 @@
       type: 'string',
     },
     COUCHDB_AUTH_PASSWORD: {
+      type: 'string',
+    },
+
+    ARANGODB_SERVER_URL: {
+      type: 'string',
+      pattern: urlPattern,
+      default: 'http://localhost:8529',
+      examples: [
+        'http://localhost:8529',
+      ],
+    },
+    ARANGODB_AUTH_USERNAME: {
+      type: 'string',
+    },
+    ARANGODB_AUTH_PASSWORD: {
       type: 'string',
     },
   },

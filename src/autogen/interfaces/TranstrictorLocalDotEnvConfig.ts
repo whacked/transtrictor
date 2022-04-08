@@ -9,7 +9,13 @@
  * .env config for transtrictor local utils (webserver, pouchdb)
  */
 export interface TranstrictorLocalDotEnvConfigSchema {
+  /**
+   * where the api server listens for requests
+   */
   API_SERVER_PORT?: number;
+  ARANGODB_AUTH_PASSWORD?: string;
+  ARANGODB_AUTH_USERNAME?: string;
+  ARANGODB_SERVER_URL?: string;
   COUCHDB_AUTH_PASSWORD?: string;
   COUCHDB_AUTH_USERNAME?: string;
   COUCHDB_SERVER_URL?: string;
