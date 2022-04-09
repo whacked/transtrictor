@@ -91,9 +91,9 @@ export class SqliteDatabase extends JsonDatabase {
 
     async _setupTables() {
         try {
-            await this.runSql(`CREATE TABLE IF NOT EXISTS "${JSON_SCHEMAS_TABLE_NAME}" (title TEXT, version TEXT, json TEXT)`)
-            await this.runSql(`CREATE TABLE IF NOT EXISTS "${TRANSFORMERS_TABLE_NAME}" (name TEXT, json TEXT)`)
-            await this.runSql(`CREATE TABLE IF NOT EXISTS "${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}" (dataChecksum TEXT, json TEXT)`)
+            await this.runSql(`CREATE TABLE IF NOT EXISTS "${JSON_SCHEMAS_TABLE_NAME}" (title TEXT, version TEXT, json TEXT, UNIQUE (title, version) ON CONFLICT REPLACE)`)
+            await this.runSql(`CREATE TABLE IF NOT EXISTS "${TRANSFORMERS_TABLE_NAME}" (name TEXT PRIMARY KEY, json TEXT)`)
+            await this.runSql(`CREATE TABLE IF NOT EXISTS "${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}" (dataChecksum TEXT PRIMARY KEY, json TEXT)`)
         } catch (error) {
             console.error('SETUP TABLES ERROR', error)
             throw error
