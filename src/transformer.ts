@@ -50,11 +50,11 @@ export function wrapTransformationContext(transformableData: Object, context: Ob
     }
 }
 
-export function unwrapTransformationContext(wrappedDataContext: IWrappedDataContext) {
+export function unwrapTransformationContext<T>(wrappedDataContext: IWrappedDataContext): T {
     if (wrappedDataContext.output == null) {
         console.warn(col.bgRed(col.white('WARNING: wrapped data has no "output" field')))
     }
-    return wrappedDataContext.output
+    return wrappedDataContext.output as T
 }
 
 export function bailIfValidationError(validator: ValidateFunction, comment: string, ...anythingElse) {

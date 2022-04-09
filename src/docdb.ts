@@ -1,7 +1,6 @@
 import PouchDB from 'pouchdb'
 import * as GenerateSchema from 'generate-schema';
 import { canonicalize } from 'json-canonicalize';
-import { getSha256 } from '../src/database';
 import {
     Config,
     ExtendedResponse,
@@ -9,6 +8,7 @@ import {
     SchemaStatistic,
     SCHEMAS_TABLE_NAME,
 } from './defs';
+import { getSha256 } from './util';
 
 
 export const POUCHDB_ADAPTER_CONFIG = (Config.POUCHDB_DATABASE_PREFIX ?? ':memory:') == ':memory:'
@@ -23,9 +23,11 @@ export let PouchDbConfig = null;
 if (POUCHDB_ADAPTER_CONFIG.adapter == ':memory:') {
     console.info('IN MEMORY DATABASE')
     PouchDbConfig = PouchDB.plugin(require('pouchdb-adapter-memory')).defaults(POUCHDB_ADAPTER_CONFIG)
-} else {
+} else if (Config.COUCHDB_SERVER_URL == null) {
     console.info(`WEBSQL DATABASE at ${POUCHDB_ADAPTER_CONFIG.prefix}`)
     PouchDbConfig = PouchDB.plugin(require('pouchdb-adapter-node-websql')).defaults(POUCHDB_ADAPTER_CONFIG)
+} else {
+    PouchDB.plugin(require('pouchdb-authentication'))
 }
 PouchDB.plugin(require('pouchdb-find'))
 PouchDB.plugin(require('pouchdb-upsert'))

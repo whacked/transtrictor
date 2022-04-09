@@ -7,10 +7,13 @@ export const GENERIC_DATASETS_TABLE_NAME = 'datasets'
 export const SCHEMAS_TABLE_NAME = 'schemas'
 
 // merge with STP?
-export const JSON_SCHEMAS_TABLE_NAME = 'JsonSchemas'
-export const TRANSFORMERS_TABLE_NAME = 'Transformers'
-export const SCHEMA_TAGGED_PAYLOADS_TABLE_NAME = 'SchemaTaggedPayloads'
+export const JSON_SCHEMAS_TABLE_NAME = 'json-schemas'  // 'JsonSchemas'
+export const TRANSFORMERS_TABLE_NAME = 'transformers'  // 'Transformers'
+export const SCHEMA_TAGGED_PAYLOADS_TABLE_NAME = 'schema-tagged-payloads'  // 'SchemaTaggedPayloads'
 export const CURRENT_PROTOCOL_VERSION = '2022-03-25.1'
+
+
+export type sha256HexString = string
 
 export interface SchemaStatistic {
     firstAppearedAt: any,

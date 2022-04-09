@@ -7,6 +7,7 @@ import {
     POUCHDB_ADAPTER_CONFIG,
     SchemaStatisticsLoader,
 } from '../src/docdb'
+import { canonicalize as canonicalizeJson } from 'json-canonicalize'
 import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { validateDataWithSchema, ValidationResult } from '../src/jsvg-lib';
@@ -15,7 +16,6 @@ import { SchemaTaggedPayload } from '../src/autogen/interfaces/anthology/2022/03
 import { Transformer } from '../src/autogen/interfaces/anthology/2022/03/30/Transformer'
 import Ajv from 'ajv';
 import Draft04Schema from 'json-metaschema/draft-04-schema.json'
-import { getSha256 } from '../src/database';
 import {
     Config,
     CURRENT_PROTOCOL_VERSION,
@@ -23,7 +23,10 @@ import {
     SCHEMA_TAGGED_PAYLOADS_TABLE_NAME,
     TRANSFORMERS_TABLE_NAME,
 } from '../src/defs';
-import { monkeyPatchConsole } from '../src/util';
+import {
+    createProxyMiddleware,
+} from 'http-proxy-middleware'
+import { getJcsSha256, monkeyPatchConsole, toSha256Checksum } from '../src/util';
 import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../src/transformer'
 monkeyPatchConsole()
 
@@ -37,9 +40,25 @@ monkeyPatchConsole()
 //     }
 // })
 
-let pouchSchemas = new PouchDB(JSON_SCHEMAS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
-let pouchTransformers = new PouchDB(TRANSFORMERS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
-let pouchSchemaTaggedPayloads = new PouchDB(SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
+let pouchSchemas: PouchDB.Database
+let pouchTransformers: PouchDB.Database
+let pouchSchemaTaggedPayloads: PouchDB.Database
+
+if (Config.COUCHDB_SERVER_URL == null) {
+    pouchSchemas = new PouchDB(JSON_SCHEMAS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
+    pouchTransformers = new PouchDB(TRANSFORMERS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
+    pouchSchemaTaggedPayloads = new PouchDB(SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, POUCHDB_ADAPTER_CONFIG)
+} else {
+    const authConfig = {
+        auth: {
+            username: Config.COUCHDB_AUTH_USERNAME,
+            password: Config.COUCHDB_AUTH_PASSWORD,
+        }
+    }
+    pouchSchemas = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + JSON_SCHEMAS_TABLE_NAME, authConfig)
+    pouchTransformers = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + TRANSFORMERS_TABLE_NAME, authConfig)
+    pouchSchemaTaggedPayloads = new PouchDB(Config.COUCHDB_SERVER_URL + '/' + SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, authConfig)
+}
 
 const POUCHDB_BAD_REQUEST_RESPONSE = {  // this is copied from the error response from posting invalid JSON to express-pouchdb at /api
     error: "bad_request",
@@ -57,10 +76,6 @@ export const FIXME_SchemaHasTitleAndVersion = {
         },
     },
     required: ['title', 'version'],
-}
-
-function toSha256Checksum(data: any) {
-    return `sha256:${getSha256(data)}`
 }
 
 function stripPouchDbMetadataFields_BANG(record: any): any {
@@ -109,10 +124,16 @@ export async function transformPayload(
     dataChecksum: string,
     context: any,
 ): Promise<SchemaTaggedPayload> {
-    let transformerRecord = await pouchTransformers.find({
-        selector: {
-            name: transformerName
+    let transformerRecord = await pouchTransformers.createIndex({
+        index: {
+            fields: ['name'],
         }
+    }).then(() => {
+        return pouchTransformers.find({
+            selector: {
+                name: transformerName
+            }
+        })
     }).then((result) => {
         return (<any>result.docs[0]) as Transformer
     })
@@ -121,11 +142,20 @@ export async function transformPayload(
         throw new Error(`no transformer named ${transformerName}`)
     }
 
-    let payload = await pouchSchemaTaggedPayloads.find({
-        selector: {
-            dataChecksum: dataChecksum,
+    let payload = await pouchSchemaTaggedPayloads.createIndex({
+        index: {
+            fields: ['dataChecksum'],
         }
+    }).then(() => {
+        return pouchSchemaTaggedPayloads.find({
+            selector: {
+                dataChecksum: dataChecksum,
+            }
+        })
     }).then((result) => {
+        if (result.docs.length > 1) {
+            throw new Error(`data checksum not unique! found ${result.docs.length} for checksum ${dataChecksum}`)
+        }
         return (<any>result.docs[0]) as SchemaTaggedPayload
     })
 
@@ -151,14 +181,15 @@ export async function transformPayload(
     let transformer = makeTransformer(transformerRecord.language as TransformerLanguage, transformerRecord.sourceCode)
 
     return transformer.transform(wrapTransformationContext(payload.data, context)).then((transformed) => {
-        return unwrapTransformationContext(transformed)
+        return unwrapTransformationContext<SchemaTaggedPayload>(transformed)
     }).then((unwrapped) => {
+        const transformedDataChecksum = toSha256Checksum(unwrapped.data)
         // TAG WRAPPING HAPPENS HERE
         let schemaTaggedPayload: SchemaTaggedPayload = {
             protocolVersion: CURRENT_PROTOCOL_VERSION,
-            dataChecksum,
+            dataChecksum: transformedDataChecksum,  // TODO test that post-transform checksum != input checksum (unless fixed point!?)
             createdAt: context['createdAt'] ?? Date.now() / 1e3,
-            data: unwrapped,
+            data: unwrapped.data,
             schemaName: outputSchemaName,
             schemaVersion: outputSchemaVersion,
         }
@@ -177,43 +208,55 @@ export function startWebserver(args: IYarguments = null) {
     const app = express()
     app.use(ExpressFileUpload())
 
-    const EXPRESS_POUCHDB_PREFIX = '/api'
-    const expressPouchDbHandler = ExpressPouchDb(PouchDbConfig, {
-        logPath: Config.EXPRESS_POUCHDB_LOG_PATH,
-    })
+    const EXPRESS_COUCHDB_API_PREFIX = '/api'
 
-    // hot fix to allow mounting express-pouchdb from non / path
-    // ref https://github.com/pouchdb/express-pouchdb/issues/290#issuecomment-265311015
-    // app.use(EXPRESS_POUCHDB_PREFIX, expressPouchDbHandler)
-    // /*
-    app.use((req: express.Request, res: express.Response, next: Function) => {
-        let referer = req.header('Referer')
-        let refererUrl: URL
-        if (referer != null) {
-            refererUrl = new URL(referer)
-        }
-        if (!req.url.startsWith(EXPRESS_POUCHDB_PREFIX)) {
-            if (/^\/(?:_utils|_session|_all_dbs|_users)/.test(refererUrl?.pathname || req.url)) {
-                return expressPouchDbHandler(req, res)
-                // } else if (req.url == '' && refererUrl?.pathname == `${EXPRESS_POUCHDB_PREFIX}/_utils/`) {
-                //     // non-working code in attempt to allow loading fauxon from /prefix/
-                //     // this doesn't work because the endpoint for resources for fauxson are hard-coded
-                //     // in the front-end javascript, and targets /_utils from the root addr
-                //     return expressPouchDbHandler(req, res)
-            } else {
-                return next()
+    if (Config.COUCHDB_SERVER_URL != null) {
+        app.use('/api', createProxyMiddleware({
+            target: Config.COUCHDB_SERVER_URL,
+            changeOrigin: true,
+            pathRewrite: { '^/api': '' },
+            auth: `${Config.COUCHDB_AUTH_USERNAME}:${Config.COUCHDB_AUTH_PASSWORD}`,
+        }))
+    } else {
+        const ExpressPouchDb = require('express-pouchdb')
+        const expressPouchDbHandler = ExpressPouchDb(PouchDbConfig, {
+            logPath: Config.EXPRESS_POUCHDB_LOG_PATH,
+        })
+
+        // FIXME
+        // hot fix to allow mounting express-pouchdb from non / path
+        // ref https://github.com/pouchdb/express-pouchdb/issues/290#issuecomment-265311015
+        // app.use(EXPRESS_POUCHDB_PREFIX, expressPouchDbHandler)
+        // /*
+        app.use((req: express.Request, res: express.Response, next: Function) => {
+            let referer = req.header('Referer')
+            let refererUrl: URL
+            if (referer != null) {
+                refererUrl = new URL(referer)
             }
-        }
-        if (req.url.endsWith('/_utils')) {
-            // the pouch handler redirects non-slashed paths to the slashed path,
-            // back to the unqualified path (/_utils/), which does NOT have our handler
-            return res.redirect(req.originalUrl + '/')
-        }
-        let originalUrl = req.originalUrl
-        req.url = req.originalUrl = originalUrl.substring(EXPRESS_POUCHDB_PREFIX.length)  // [1/2] required for successful inner middleware call
-        req.baseUrl = ''  // [2/2] required for successful inner middleware call
-        return expressPouchDbHandler(req, res);
-    });
+            if (!req.url.startsWith(EXPRESS_COUCHDB_API_PREFIX)) {
+                if (/^\/(?:_utils|_session|_all_dbs|_users)/.test(refererUrl?.pathname || req.url)) {
+                    return expressPouchDbHandler(req, res)
+                    // } else if (req.url == '' && refererUrl?.pathname == `${EXPRESS_POUCHDB_PREFIX}/_utils/`) {
+                    //     // non-working code in attempt to allow loading fauxon from /prefix/
+                    //     // this doesn't work because the endpoint for resources for fauxson are hard-coded
+                    //     // in the front-end javascript, and targets /_utils from the root addr
+                    //     return expressPouchDbHandler(req, res)
+                } else {
+                    return next()
+                }
+            }
+            if (req.url.endsWith('/_utils')) {
+                // the pouch handler redirects non-slashed paths to the slashed path,
+                // back to the unqualified path (/_utils/), which does NOT have our handler
+                return res.redirect(req.originalUrl + '/')
+            }
+            let originalUrl = req.originalUrl
+            req.url = req.originalUrl = originalUrl.substring(EXPRESS_COUCHDB_API_PREFIX.length)  // [1/2] required for successful inner middleware call
+            req.baseUrl = ''  // [2/2] required for successful inner middleware call
+            return expressPouchDbHandler(req, res);
+        });
+    }
 
     app.use(express.json({
         verify: (req: express.Request, res: express.Response, buf: Buffer, encoding: string) => {  // capture raw body into request.rawBody
@@ -299,6 +342,7 @@ export function startWebserver(args: IYarguments = null) {
             let isValid: any
             isValid = ajv.validate(FIXME_SchemaHasTitleAndVersion, unvalidatedPayload)
             if (!isValid) {
+                console.warn(unvalidatedPayload)
                 throw new Error('failed on version and title precondition')
             }
             isValid = ajv.validateSchema(unvalidatedPayload)
@@ -316,7 +360,7 @@ export function startWebserver(args: IYarguments = null) {
             })
         }
 
-        let hash = getSha256(JSON.stringify(unvalidatedPayload))
+        let hash = getJcsSha256(unvalidatedPayload)
         return pouchSchemas.put({
             _id: hash,
             ...unvalidatedPayload,
@@ -422,7 +466,7 @@ export function startWebserver(args: IYarguments = null) {
                 schemaName: schema['title'],
                 schemaVersion: schema['version'],
             }
-            let hash = getSha256(JSON.stringify(schemaTaggedPayload))
+            let hash = getJcsSha256(schemaTaggedPayload)
             return pouchSchemaTaggedPayloads.putIfNotExists({
                 _id: hash,
                 ...schemaTaggedPayload,
@@ -478,10 +522,10 @@ export function startWebserver(args: IYarguments = null) {
         }
     })
 
-    app.post('/transformPayload/:dataChecksum', async (req: express.Request, res: express.Response) => {
+    app.post('/transformAndStorePayload/:dataChecksum', async (req: express.Request, res: express.Response) => {
         try {
             let schemaTaggedPayload: SchemaTaggedPayload = await handleDataTransformationRequest(req)
-            let hash = getSha256(JSON.stringify(schemaTaggedPayload))
+            let hash = getJcsSha256(schemaTaggedPayload)
             return pouchSchemaTaggedPayloads.putIfNotExists({
                 _id: hash,
                 ...schemaTaggedPayload,
@@ -497,7 +541,7 @@ export function startWebserver(args: IYarguments = null) {
     })
 
     return app.listen(Config.API_SERVER_PORT, () => {
-        console.log(`data server running on port ${Config.API_SERVER_PORT}`)
+        console.log(`data server running on port ${Config.API_SERVER_PORT}; db: ${Config.COUCHDB_SERVER_URL ?? Config.POUCHDB_DATABASE_PREFIX}`)
     })
 }
 

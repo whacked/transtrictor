@@ -22,5 +22,18 @@
       type: 'number',
       default: 1235,
     },
+    COUCHDB_SERVER_URL: {
+      type: 'string',
+      pattern: 'https?://.+?:\\d+',
+      examples: [
+        'http://localhost:5984',
+      ],
+    },
+    COUCHDB_AUTH_USERNAME: {
+      type: 'string',
+    },
+    COUCHDB_AUTH_PASSWORD: {
+      type: 'string',
+    },
   },
 }

@@ -5,6 +5,19 @@
          "default": 1235,
          "type": "number"
       },
+      "COUCHDB_AUTH_PASSWORD": {
+         "type": "string"
+      },
+      "COUCHDB_AUTH_USERNAME": {
+         "type": "string"
+      },
+      "COUCHDB_SERVER_URL": {
+         "examples": [
+            "http://localhost:5984"
+         ],
+         "pattern": "https?://.+?:\\d+",
+         "type": "string"
+      },
       "EXPRESS_POUCHDB_LOG_PATH": {
          "default": "express-pouchdb.log",
          "description": "where the access logs for express-pouchdb should be saved",

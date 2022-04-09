@@ -10,6 +10,9 @@
  */
 export interface TranstrictorLocalDotEnvConfigSchema {
   API_SERVER_PORT?: number;
+  COUCHDB_AUTH_PASSWORD?: string;
+  COUCHDB_AUTH_USERNAME?: string;
+  COUCHDB_SERVER_URL?: string;
   /**
    * where the access logs for express-pouchdb should be saved
    */

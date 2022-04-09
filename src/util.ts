@@ -1,7 +1,25 @@
 import fs from 'fs'
 import path from 'path'
 import chalk from 'chalk'
+import memoizerific from 'memoizerific'
+import { sha256HexString } from './defs'
+import crypto from 'crypto'
+import { canonicalize as toCanonicalizedJson } from 'json-canonicalize'
 
+
+export function readStdin(): Promise<string> {
+    process.stdin.resume();
+    process.stdin.setEncoding('utf-8');
+    let readBuffer: string = ''
+    return new Promise((resolve, reject) => {
+        process.stdin.on('data', inputData => {
+            readBuffer += inputData
+        })
+        process.stdin.on('end', _ => {
+            resolve(readBuffer)
+        })
+    })
+}
 
 export function bailIfNotExists(filePath: string) {
     if (!fs.existsSync(filePath)) {
@@ -65,4 +83,16 @@ export function monkeyPatchConsole() {
         };
     });
     isPatched = true;
+}
+
+export const getSha256 = memoizerific(1000)((content: string): sha256HexString => {
+    return crypto.createHash('sha256').update(content).digest('hex')
+})
+
+export function getJcsSha256(data: any): string {
+    return getSha256(toCanonicalizedJson(data))
+}
+
+export function toSha256Checksum(data: any): string {
+    return `sha256:${getJcsSha256(data)}`
 }
