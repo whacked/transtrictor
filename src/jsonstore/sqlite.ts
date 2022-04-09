@@ -140,7 +140,7 @@ export class SqliteDatabase extends JsonDatabase {
         )
     }
 
-    getTransformer(transformerName: string) {
+    getTransformer(transformerName: string): Promise<Transformer> {
         return this.getJsonRecordWithPreparedSql<Transformer>(
             `SELECT json FROM "${TRANSFORMERS_TABLE_NAME}" WHERE name = $name`,
             {

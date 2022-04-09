@@ -31,6 +31,7 @@ import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrap
 import { PouchDatabase } from '../src/jsonstore/xouchdb'
 import { JsonDatabase } from '../src/jsonstore'
 import { ArangoDatabase } from '../src/jsonstore/arangodb'
+import { PostgresDatabase } from '../src/jsonstore/postgres'
 import { SqliteDatabase } from '../src/jsonstore/sqlite'
 monkeyPatchConsole()
 
@@ -65,28 +66,28 @@ interface IYarguments {
 
 export async function startWebserver(args: IYarguments = null) {
 
-    let jsonDatabase: JsonDatabase | ArangoDatabase
+    let jsonDatabase: JsonDatabase
     let databaseServerLocation: string
-    if (!isEmpty(Config.SQLITE_DATABASE_PATH)) {
+    if (!isEmpty(Config.PGDATABASE)) {
+        databaseServerLocation = `[postgres] ${Config.PGHOST}/${Config.PGDATABASE}`
+        jsonDatabase = await PostgresDatabase.getSingleton()
+    } else if (!isEmpty(Config.SQLITE_DATABASE_PATH)) {
         databaseServerLocation = `[sqlite] ${Config.SQLITE_DATABASE_PATH}`
         jsonDatabase = await SqliteDatabase.getSingleton()
     } else if (!isEmpty(Config.ARANGODB_SERVER_URL)) {
         jsonDatabase = new ArangoDatabase();
         (<ArangoDatabase>jsonDatabase).setupCollections()
         databaseServerLocation = `[arango] ${Config.ARANGODB_SERVER_URL}`
-    } else {
+    } else if (isEmpty(Config.COUCHDB_SERVER_URL)) {
         jsonDatabase = new PouchDatabase()
-        if (Config.COUCHDB_SERVER_URL != null) {
-            databaseServerLocation = `[couchdb] ${Config.COUCHDB_SERVER_URL}`
-        } else {
-            databaseServerLocation = `[pouchdb] ${Config.POUCHDB_DATABASE_PREFIX}`
-        }
-    }
-    if (jsonDatabase == null) {
-        throw new Error('you must initialize the json database object!')
+        databaseServerLocation = `[couchdb] ${Config.COUCHDB_SERVER_URL}`
+    } else if (!isEmpty(Config.POUCHDB_DATABASE_PREFIX)) {
+        jsonDatabase = new PouchDatabase()
+        databaseServerLocation = `[pouchdb] ${Config.POUCHDB_DATABASE_PREFIX}`
     } else {
-        console.log('database initialized', jsonDatabase)
+        throw new Error('you must initialize the json database object!')
     }
+
     const app = express()
     app.use(ExpressFileUpload())
 
@@ -99,7 +100,7 @@ export async function startWebserver(args: IYarguments = null) {
             pathRewrite: { '^/api': '' },
             auth: `${Config.COUCHDB_AUTH_USERNAME}:${Config.COUCHDB_AUTH_PASSWORD}`,
         }))
-    } else if (Config.ARANGODB_SERVER_URL == null) {
+    } else if (Config.POUCHDB_DATABASE_PREFIX != null) {
         const expressPouchDbHandler = ExpressPouchDb(PouchDbConfig, {
             logPath: Config.EXPRESS_POUCHDB_LOG_PATH,
         })
@@ -151,8 +152,9 @@ export async function startWebserver(args: IYarguments = null) {
         });
 
         // enable fauxton from /_utils
-        // NOTE this breaks everything else!
-        app.use(expressPouchDbHandler)
+        // FIXME NOTE this breaks everything else!
+        // this is only useful when browsing already-inserted data
+        // app.use(expressPouchDbHandler)
     }
 
     app.use(express.json({
