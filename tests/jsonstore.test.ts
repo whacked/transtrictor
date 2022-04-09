@@ -37,16 +37,18 @@ describe('standard collections I/O', () => {
         version: '0',
     }
 
+    const basePayload = {
+        bar: 'baz',
+        foo: 1,
+    }
+    const payloadChecksum = 'sha256:fdd6d11951299b11b907b704cb0030da837421f7be1315f0b2d16c86cee08bdc'  // toSha256Checksum(basePayload)
     let originalPayload: SchemaTaggedPayload = {
-        data: {
-            bar: 'baz',
-            foo: 1,
-        },
+        data: basePayload,
+        dataChecksum: payloadChecksum,
         protocolVersion: CURRENT_PROTOCOL_VERSION,
         schemaName: 'my-test-input-schema',
         schemaVersion: '0',
     }
-    const payloadChecksum = 'sha256:1bbbfefaa6396238038fbcf1fd8f0e19a548118fc9831e0df02591531d977ddf'
 
     let testOutputSchema = {
         type: 'object',
@@ -79,7 +81,7 @@ describe('standard collections I/O', () => {
         let dbDriver = await SqliteDatabase.getSingleton()
 
         await dbDriver.getTables().then((tables) => {
-            expect(tables.length).toBe(3)
+            expect(tables.filter(row => row['type'] == 'table').length).toBe(3)
         })
         await dbDriver.putSchema(testOutputSchema)
 
@@ -109,8 +111,6 @@ describe('standard collections I/O', () => {
 
     test('schema tagged payload storage and retrieval', async () => {
         let dbDriver = await SqliteDatabase.getSingleton()
-        let payloadChecksum = toSha256Checksum(originalPayload)
-        expect(payloadChecksum).toBe(payloadChecksum)
         return dbDriver.putSchemaTaggedPayload(originalPayload).then(() => {
             return dbDriver.getSchemaTaggedPayload(payloadChecksum).then((retrievedPayload) => {
                 expect(retrievedPayload).toEqual(originalPayload)
