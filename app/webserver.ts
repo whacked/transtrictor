@@ -11,7 +11,7 @@ import { canonicalize as canonicalizeJson } from 'json-canonicalize'
 import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { validateDataWithSchema, ValidationResult } from '../src/jsvg-lib';
-import SchemaTaggedPayloadSchema from '../src/autogen/schemas/anthology/2022/03/25/SchemaTaggedPayloadProtocol.schema.json'
+import SchemaTaggedPayloadJsonSchemaSchema from '../src/autogen/schemas/SchemaTaggedPayloadJsonSchema.schema.json'
 import { SchemaTaggedPayload } from '../src/autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload'
 import { Transformer } from '../src/autogen/interfaces/anthology/2022/03/30/Transformer'
 import Ajv from 'ajv';
@@ -28,9 +28,9 @@ import {
 } from 'http-proxy-middleware'
 import { getJcsSha256, monkeyPatchConsole, toSha256Checksum } from '../src/util';
 import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../src/transformer'
-import { PouchDatabase } from '../src/xouchdb'
+import { PouchDatabase } from '../src/jsonstore/xouchdb'
 import { JsonDatabase } from '../src/jsonstore'
-import { ArangoDatabase } from '../src/arangodb'
+import { ArangoDatabase } from '../src/jsonstore/arangodb'
 monkeyPatchConsole()
 
 
@@ -68,19 +68,6 @@ if (jsonDatabase == null) {
 const POUCHDB_BAD_REQUEST_RESPONSE = {  // this is copied from the error response from posting invalid JSON to express-pouchdb at /api
     error: "bad_request",
     reason: "invalid_json",
-}
-
-export const FIXME_SchemaHasTitleAndVersion = {
-    type: 'object',
-    properties: {
-        title: {
-            type: 'string',
-        },
-        version: {
-            type: 'string',
-        },
-    },
-    required: ['title', 'version'],
 }
 
 function getDraft04SchemaValidator(): Ajv {
@@ -254,7 +241,7 @@ export function startWebserver(args: IYarguments = null) {
         try {
             unvalidatedPayload = getRawBodyJson(req)
             let isValid: any
-            isValid = ajv.validate(FIXME_SchemaHasTitleAndVersion, unvalidatedPayload)
+            isValid = ajv.validate(SchemaTaggedPayloadJsonSchemaSchema, unvalidatedPayload)
             if (!isValid) {
                 console.warn(unvalidatedPayload)
                 throw new Error('failed on version and title precondition')

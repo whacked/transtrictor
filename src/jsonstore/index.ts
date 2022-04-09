@@ -1,4 +1,4 @@
-import { Transformer } from './autogen/interfaces/anthology/2022/03/30/Transformer'
+import { Transformer } from '../autogen/interfaces/anthology/2022/03/30/Transformer'
 
 
 export abstract class JsonDatabase {
