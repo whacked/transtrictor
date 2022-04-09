@@ -48,6 +48,13 @@
             "/tmp/cache/test-pdb"
          ],
          "type": "string"
+      },
+      "SQLITE_DATABASE_PATH": {
+         "examples": [
+            ":memory:",
+            "/tmp/transtrictor-data.sqlite"
+         ],
+         "type": "string"
       }
    },
    "type": "object"

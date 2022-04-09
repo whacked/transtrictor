@@ -25,9 +25,9 @@ export function readStdin(): Promise<string> {
     })
 }
 
-export function bailIfNull<T>(maybeNull: T): T {
+export function bailIfNull<T>(maybeNull: T, message: string = null): T {
     if (maybeNull == null) {
-        throw new Error('this value must not be null')
+        throw new Error(message ?? 'this value must not be null')
     }
     return maybeNull
 }
@@ -104,6 +104,17 @@ export function getJcsSha256(data: any): string {
     return getSha256(toCanonicalizedJson(data))
 }
 
+export function prefixWithSha256(s: string) {
+    return `sha256:${s}`
+}
+
 export function toSha256Checksum(data: any): string {
-    return `sha256:${getJcsSha256(data)}`
+    return prefixWithSha256(getJcsSha256(data))
+}
+
+export function getSha256Part(dataChecksum: string): string {
+    if (!dataChecksum.startsWith('sha256:')) {
+        throw new Error('sha256 checksum must start with sha256:')
+    }
+    return dataChecksum.substring(7)
 }

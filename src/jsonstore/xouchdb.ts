@@ -69,7 +69,23 @@ export class PouchDatabase extends JsonDatabase {
         })
     }
 
-    putSchema(schema: any) {
+    async getTransformer(transformerName: string) {
+        return this.transformers.createIndex({
+            index: {
+                fields: ['name'],
+            }
+        }).then(() => {
+            return this.transformers.find({
+                selector: {
+                    name: transformerName
+                }
+            })
+        }).then((result) => {
+            return (<any>result.docs[0]) as Transformer
+        })
+    }
+
+    async putSchema(schema: any) {
         let hash = getJcsSha256(schema)
         return this.schemas.put({
             _id: hash,
@@ -89,6 +105,25 @@ export class PouchDatabase extends JsonDatabase {
         return this.schemaTaggedPayloads.putIfNotExists({
             _id: hash,
             ...schemaTaggedPayload,
+        })
+    }
+
+    getSchemaTaggedPayload(dataChecksum: string) {
+        return this.schemaTaggedPayloads.createIndex({
+            index: {
+                fields: ['dataChecksum'],
+            }
+        }).then(() => {
+            return this.schemaTaggedPayloads.find({
+                selector: {
+                    dataChecksum: dataChecksum,
+                }
+            })
+        }).then((result) => {
+            if (result.docs.length > 1) {
+                throw new Error(`data checksum not unique! found ${result.docs.length} for checksum ${dataChecksum}`)
+            }
+            return (<any>result.docs[0]) as SchemaTaggedPayload
         })
     }
 
@@ -134,87 +169,5 @@ export class PouchDatabase extends JsonDatabase {
             }
             return null
         })
-    }
-
-    async transformPayload(
-        transformerName: string,
-        dataChecksum: string,
-        context: any,
-    ): Promise<SchemaTaggedPayload> {
-        let transformerRecord = await this.transformers.createIndex({
-            index: {
-                fields: ['name'],
-            }
-        }).then(() => {
-            return this.transformers.find({
-                selector: {
-                    name: transformerName
-                }
-            })
-        }).then((result) => {
-            return (<any>result.docs[0]) as Transformer
-        })
-
-        if (transformerRecord == null) {
-            throw new Error(`no transformer named ${transformerName}`)
-        }
-        if (transformerRecord.outputSchema == null) {
-            throw new Error(`transformer ${transformerName} has no output schema`)
-        }
-
-        let payload = await this.schemaTaggedPayloads.createIndex({
-            index: {
-                fields: ['dataChecksum'],
-            }
-        }).then(() => {
-            return this.schemaTaggedPayloads.find({
-                selector: {
-                    dataChecksum: dataChecksum,
-                }
-            })
-        }).then((result) => {
-            if (result.docs.length > 1) {
-                throw new Error(`data checksum not unique! found ${result.docs.length} for checksum ${dataChecksum}`)
-            }
-            return (<any>result.docs[0]) as SchemaTaggedPayload
-        })
-
-        if (payload == null) {
-            throw new Error(`no data with checksum ${dataChecksum}`)
-        }
-
-        let outputSchema = await this.schemas.find({
-            selector: {
-                title: transformerRecord.outputSchema,
-            }
-        }).then((result) => {
-            return (<any>result.docs[0])
-        })
-
-        if (outputSchema == null) {
-            throw new Error(`no output schema matching ${transformerRecord.outputSchema}`)
-        }
-
-        let outputSchemaName = outputSchema.title
-        let outputSchemaVersion = outputSchema.version
-
-        let transformer = makeTransformer(transformerRecord.language as TransformerLanguage, transformerRecord.sourceCode)
-
-        return transformer.transform(wrapTransformationContext(payload.data, context)).then((transformed) => {
-            return unwrapTransformationContext<SchemaTaggedPayload>(transformed)
-        }).then((unwrapped) => {
-            const transformedDataChecksum = toSha256Checksum(unwrapped.data)
-            // TAG WRAPPING HAPPENS HERE
-            let schemaTaggedPayload: SchemaTaggedPayload = {
-                protocolVersion: CURRENT_PROTOCOL_VERSION,
-                dataChecksum: transformedDataChecksum,  // TODO test that post-transform checksum != input checksum (unless fixed point!?)
-                createdAt: context['createdAt'] ?? Date.now() / 1e3,
-                data: unwrapped.data,
-                schemaName: outputSchemaName,
-                schemaVersion: outputSchemaVersion,
-            }
-            return schemaTaggedPayload
-        })
-
     }
 }
