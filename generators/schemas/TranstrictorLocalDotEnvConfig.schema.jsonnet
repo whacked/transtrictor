@@ -55,5 +55,13 @@ local urlPattern = 'https?://.+?:\\d+';
     ARANGODB_AUTH_PASSWORD: {
       type: 'string',
     },
+
+    SQLITE_DATABASE_PATH: {
+      type: 'string',
+      examples: [
+        ':memory:',
+        '/tmp/transtrictor-data.sqlite',
+      ],
+    },
   },
 }

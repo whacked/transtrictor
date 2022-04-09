@@ -11,7 +11,7 @@ import { canonicalize as canonicalizeJson } from 'json-canonicalize'
 import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { validateDataWithSchema, ValidationResult } from '../src/jsvg-lib';
-import SchemaTaggedPayloadSchema from '../src/autogen/schemas/anthology/2022/03/25/SchemaTaggedPayloadProtocol.schema.json'
+import SchemaTaggedPayloadJsonSchemaSchema from '../src/autogen/schemas/SchemaTaggedPayloadJsonSchema.schema.json'
 import { SchemaTaggedPayload } from '../src/autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload'
 import { Transformer } from '../src/autogen/interfaces/anthology/2022/03/30/Transformer'
 import Ajv from 'ajv';
@@ -26,61 +26,18 @@ import {
 import {
     createProxyMiddleware,
 } from 'http-proxy-middleware'
-import { getJcsSha256, monkeyPatchConsole, toSha256Checksum } from '../src/util';
+import { getJcsSha256, isEmpty, monkeyPatchConsole, toSha256Checksum } from '../src/util';
 import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../src/transformer'
-import { PouchDatabase } from '../src/xouchdb'
+import { PouchDatabase } from '../src/jsonstore/xouchdb'
 import { JsonDatabase } from '../src/jsonstore'
-import { ArangoDatabase } from '../src/arangodb'
+import { ArangoDatabase } from '../src/jsonstore/arangodb'
+import { SqliteDatabase } from '../src/jsonstore/sqlite'
 monkeyPatchConsole()
 
-
-let jsonDatabase: JsonDatabase | ArangoDatabase
-let databaseServerLocation: string
-if (Config.ARANGODB_SERVER_URL != null) {
-    jsonDatabase = new ArangoDatabase();
-    (<ArangoDatabase>jsonDatabase).setupCollections()
-    databaseServerLocation = `[arango] ${Config.ARANGODB_SERVER_URL}`
-} else {
-    jsonDatabase = new PouchDatabase()
-    if (Config.COUCHDB_SERVER_URL != null) {
-        databaseServerLocation = `[couchdb] ${Config.COUCHDB_SERVER_URL}`
-    } else {
-        databaseServerLocation = `[pouchdb] ${Config.POUCHDB_DATABASE_PREFIX}`
-    }
-}
-if (jsonDatabase == null) {
-    throw new Error('you must initialize the json database object!')
-}
-
-// setTimeout(() => {
-//     let adb: ArangoDatabase = jsonDatabase as ArangoDatabase
-//     adb.database.query({
-//         query: `FOR schema in \`json-schemas\` RETURN schema`,
-//         bindVars: {}
-//     }).then((val) => {
-//         console.log(val)
-//         return val.next()
-//     }).then((thing) => {
-//         console.log(thing)
-//     })
-// }, 2222)
 
 const POUCHDB_BAD_REQUEST_RESPONSE = {  // this is copied from the error response from posting invalid JSON to express-pouchdb at /api
     error: "bad_request",
     reason: "invalid_json",
-}
-
-export const FIXME_SchemaHasTitleAndVersion = {
-    type: 'object',
-    properties: {
-        title: {
-            type: 'string',
-        },
-        version: {
-            type: 'string',
-        },
-    },
-    required: ['title', 'version'],
 }
 
 function getDraft04SchemaValidator(): Ajv {
@@ -106,8 +63,30 @@ interface IYarguments {
     database: string,
 }
 
-export function startWebserver(args: IYarguments = null) {
+export async function startWebserver(args: IYarguments = null) {
 
+    let jsonDatabase: JsonDatabase | ArangoDatabase
+    let databaseServerLocation: string
+    if (!isEmpty(Config.SQLITE_DATABASE_PATH)) {
+        databaseServerLocation = `[sqlite] ${Config.SQLITE_DATABASE_PATH}`
+        jsonDatabase = await SqliteDatabase.getSingleton()
+    } else if (!isEmpty(Config.ARANGODB_SERVER_URL)) {
+        jsonDatabase = new ArangoDatabase();
+        (<ArangoDatabase>jsonDatabase).setupCollections()
+        databaseServerLocation = `[arango] ${Config.ARANGODB_SERVER_URL}`
+    } else {
+        jsonDatabase = new PouchDatabase()
+        if (Config.COUCHDB_SERVER_URL != null) {
+            databaseServerLocation = `[couchdb] ${Config.COUCHDB_SERVER_URL}`
+        } else {
+            databaseServerLocation = `[pouchdb] ${Config.POUCHDB_DATABASE_PREFIX}`
+        }
+    }
+    if (jsonDatabase == null) {
+        throw new Error('you must initialize the json database object!')
+    } else {
+        console.log('database initialized', jsonDatabase)
+    }
     const app = express()
     app.use(ExpressFileUpload())
 
@@ -254,7 +233,7 @@ export function startWebserver(args: IYarguments = null) {
         try {
             unvalidatedPayload = getRawBodyJson(req)
             let isValid: any
-            isValid = ajv.validate(FIXME_SchemaHasTitleAndVersion, unvalidatedPayload)
+            isValid = ajv.validate(SchemaTaggedPayloadJsonSchemaSchema, unvalidatedPayload)
             if (!isValid) {
                 console.warn(unvalidatedPayload)
                 throw new Error('failed on version and title precondition')
@@ -390,7 +369,7 @@ export function startWebserver(args: IYarguments = null) {
         } catch (error) {
             return res.json({
                 status: 'error',
-                message: error.toString(),
+                message: error,
             })
         }
     })
@@ -405,7 +384,7 @@ export function startWebserver(args: IYarguments = null) {
         } catch (e) {
             return res.json({
                 status: 'error',
-                message: e.toString(),
+                message: e,
             })
         }
     })

@@ -1,12 +1,13 @@
 import { Database } from 'arangojs'
 import { AqlQuery } from 'arangojs/aql'
 import { DocumentCollection } from 'arangojs/collection'
-import { SchemaTaggedPayload } from './autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayloadProtocol'
-import { Transformer } from './autogen/interfaces/anthology/2022/03/30/Transformer'
-import { Config, CURRENT_PROTOCOL_VERSION, JSON_SCHEMAS_TABLE_NAME, SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, TRANSFORMERS_TABLE_NAME } from './defs'
-import { JsonDatabase } from './jsonstore'
-import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from './transformer'
-import { getJcsSha256, toSha256Checksum } from './util'
+import { SchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayloadProtocol'
+import { Transformer } from '../autogen/interfaces/anthology/2022/03/30/Transformer'
+import { Config, CURRENT_PROTOCOL_VERSION, JSON_SCHEMAS_TABLE_NAME, SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, TRANSFORMERS_TABLE_NAME } from '../defs'
+import { JsonDatabase } from '.'
+import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../transformer'
+import { getJcsSha256, toSha256Checksum } from '../util'
+import { SchemaTaggedPayloadJsonSchemaSchema } from '../autogen/interfaces/SchemaTaggedPayloadJsonSchema'
 
 
 export function stripArangoDbMetadataFields_BANG(record: any): any {
@@ -25,10 +26,9 @@ export class ArangoDatabase extends JsonDatabase {
 
     database: Database
 
-    // FIXME schemas
-    schemas: DocumentCollection<any>
-    transformers: DocumentCollection<any>
-    schemaTaggedPayloads: DocumentCollection<any>
+    schemas: DocumentCollection<SchemaTaggedPayloadJsonSchemaSchema>
+    transformers: DocumentCollection<Transformer>
+    schemaTaggedPayloads: DocumentCollection<SchemaTaggedPayload>
 
     async _ensureCollection(collectionName: string): Promise<DocumentCollection<any>> {
         let collection = this.database.collection(collectionName)
@@ -107,12 +107,21 @@ export class ArangoDatabase extends JsonDatabase {
         })
     }
 
-    async getSchemaTaggedPayload(key: string = null) {
+    async getSchemaTaggedPayloadByKey(key: string = null) {
         return this._queryAndGetFirstResult({
             query: `RETURN DOCUMENT(@key)`,
             bindVars: {
                 key: `${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}/${key}`,
             },
+        })
+    }
+
+    async getSchemaTaggedPayload(dataChecksum: string) {
+        return this._queryAndGetFirstResult({
+            query: `FOR payload IN \`schema-tagged-payloads\` FILTER payload.dataChecksum == @dataChecksum RETURN payload`,
+            bindVars: {
+                dataChecksum: dataChecksum,
+            }
         })
     }
 
@@ -134,6 +143,15 @@ export class ArangoDatabase extends JsonDatabase {
                 ...transformerRecord,
             }
         ])
+    }
+
+    getTransformer(transformerName: string) {
+        return this._queryAndGetFirstResult({
+            query: `FOR transformer IN \`transformers\` FILTER transformer.name == @name RETURN transformer`,
+            bindVars: {
+                name: transformerName,
+            }
+        })
     }
 
     putSchema(schema: any) {
@@ -172,58 +190,5 @@ export class ArangoDatabase extends JsonDatabase {
 
     findLatestMatchingSchema(schemaName: string) {
         return this._findSchema(schemaName)
-    }
-
-    async transformPayload(transformerName: string, dataChecksum: string, context: any) {
-        let transformerRecord = await this._queryAndGetFirstResult({
-            query: `FOR transformer IN \`transformers\` FILTER transformer.name == @name RETURN transformer`,
-            bindVars: {
-                name: transformerName,
-            }
-        })
-
-        if (transformerRecord == null) {
-            throw new Error(`no transformer named ${transformerName}`)
-        }
-        if (transformerRecord.outputSchema == null) {
-            throw new Error(`transformer ${transformerName} has no output schema`)
-        }
-
-        let payload = await this._queryAndGetFirstResult({
-            query: `FOR payload IN \`schema-tagged-payloads\` FILTER payload.dataChecksum == @dataChecksum RETURN payload`,
-            bindVars: {
-                dataChecksum: dataChecksum,
-            }
-        })
-
-        if (payload == null) {
-            throw new Error(`no data with checksum ${dataChecksum}`)
-        }
-
-        let outputSchema = await this.getSchema(transformerRecord.outputSchema)
-
-        if (outputSchema == null) {
-            throw new Error(`no output schema matching ${transformerRecord.outputSchema}`)
-        }
-
-        let outputSchemaName = outputSchema.title
-        let outputSchemaVersion = outputSchema.version
-
-        let transformer = makeTransformer(transformerRecord.language as TransformerLanguage, transformerRecord.sourceCode)
-        return transformer.transform(wrapTransformationContext(payload.data, context)).then((transformed) => {
-            return unwrapTransformationContext<SchemaTaggedPayload>(transformed)
-        }).then((unwrapped) => {
-            const transformedDataChecksum = toSha256Checksum(unwrapped.data)
-            // TAG WRAPPING HAPPENS HERE
-            let schemaTaggedPayload: SchemaTaggedPayload = {
-                protocolVersion: CURRENT_PROTOCOL_VERSION,
-                dataChecksum: transformedDataChecksum,  // TODO test that post-transform checksum != input checksum (unless fixed point!?)
-                createdAt: context['createdAt'] ?? Date.now() / 1e3,
-                data: unwrapped.data,
-                schemaName: outputSchemaName,
-                schemaVersion: outputSchemaVersion,
-            }
-            return schemaTaggedPayload
-        })
     }
 }
