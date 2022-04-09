@@ -18,19 +18,15 @@ export class SqliteDatabase extends JsonDatabase {
     static _singleton: SqliteDatabase
 
     database: sqlite3.Database
-    _isReady: Promise<boolean>
 
     constructor() {
         super()
-        this.database = new sqlite3.Database(Config.SQLITE_DATABASE_PATH, sqlite3.OPEN_READWRITE, (openedResult) => {
-            this._isReady = Promise.resolve(true)
-        })
+        this.database = new sqlite3.Database(Config.SQLITE_DATABASE_PATH)
     }
 
     static async getSingleton(): Promise<SqliteDatabase> {
         if (SqliteDatabase._singleton == null) {
             SqliteDatabase._singleton = new SqliteDatabase()
-            await SqliteDatabase._singleton._isReady
             await SqliteDatabase._singleton._setupTables()
         }
         return Promise.resolve(SqliteDatabase._singleton)
@@ -71,7 +67,8 @@ export class SqliteDatabase extends JsonDatabase {
                     return reject({
                         status: 'error',
                         message: 'did not get json back',
-                        sql: sql,
+                        sql,
+                        values,
                         payload: row,
                     })
                 }
@@ -152,13 +149,13 @@ export class SqliteDatabase extends JsonDatabase {
         )
     }
 
-    putSchemaTaggedPayload(schemaTaggedPayload: any) {
+    putSchemaTaggedPayload(schemaTaggedPayload: SchemaTaggedPayload) {
+        bailIfNull(schemaTaggedPayload.dataChecksum, 'payload must have precomputed checksum')
         let canonicalized = canonicalize(schemaTaggedPayload)
-        let dataChecksum = prefixWithSha256(getSha256(canonicalized))
         return this.putWithPreparedSql(
             `INSERT INTO "${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}" VALUES ($dataChecksum, $json)`,
             {
-                $dataChecksum: dataChecksum,
+                $dataChecksum: schemaTaggedPayload.dataChecksum,
                 $json: canonicalized,
             }
         )

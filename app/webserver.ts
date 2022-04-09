@@ -35,40 +35,6 @@ import { SqliteDatabase } from '../src/jsonstore/sqlite'
 monkeyPatchConsole()
 
 
-let jsonDatabase: JsonDatabase | ArangoDatabase
-let databaseServerLocation: string
-if (!isEmpty(Config.SQLITE_DATABASE_PATH)) {
-    databaseServerLocation = `[sqlite] ${Config.SQLITE_DATABASE_PATH}`
-    jsonDatabase = new SqliteDatabase()
-} else if (!isEmpty(Config.ARANGODB_SERVER_URL)) {
-    jsonDatabase = new ArangoDatabase();
-    (<ArangoDatabase>jsonDatabase).setupCollections()
-    databaseServerLocation = `[arango] ${Config.ARANGODB_SERVER_URL}`
-} else {
-    jsonDatabase = new PouchDatabase()
-    if (Config.COUCHDB_SERVER_URL != null) {
-        databaseServerLocation = `[couchdb] ${Config.COUCHDB_SERVER_URL}`
-    } else {
-        databaseServerLocation = `[pouchdb] ${Config.POUCHDB_DATABASE_PREFIX}`
-    }
-}
-if (jsonDatabase == null) {
-    throw new Error('you must initialize the json database object!')
-}
-
-// setTimeout(() => {
-//     let adb: ArangoDatabase = jsonDatabase as ArangoDatabase
-//     adb.database.query({
-//         query: `FOR schema in \`json-schemas\` RETURN schema`,
-//         bindVars: {}
-//     }).then((val) => {
-//         console.log(val)
-//         return val.next()
-//     }).then((thing) => {
-//         console.log(thing)
-//     })
-// }, 2222)
-
 const POUCHDB_BAD_REQUEST_RESPONSE = {  // this is copied from the error response from posting invalid JSON to express-pouchdb at /api
     error: "bad_request",
     reason: "invalid_json",
@@ -97,8 +63,30 @@ interface IYarguments {
     database: string,
 }
 
-export function startWebserver(args: IYarguments = null) {
+export async function startWebserver(args: IYarguments = null) {
 
+    let jsonDatabase: JsonDatabase | ArangoDatabase
+    let databaseServerLocation: string
+    if (!isEmpty(Config.SQLITE_DATABASE_PATH)) {
+        databaseServerLocation = `[sqlite] ${Config.SQLITE_DATABASE_PATH}`
+        jsonDatabase = await SqliteDatabase.getSingleton()
+    } else if (!isEmpty(Config.ARANGODB_SERVER_URL)) {
+        jsonDatabase = new ArangoDatabase();
+        (<ArangoDatabase>jsonDatabase).setupCollections()
+        databaseServerLocation = `[arango] ${Config.ARANGODB_SERVER_URL}`
+    } else {
+        jsonDatabase = new PouchDatabase()
+        if (Config.COUCHDB_SERVER_URL != null) {
+            databaseServerLocation = `[couchdb] ${Config.COUCHDB_SERVER_URL}`
+        } else {
+            databaseServerLocation = `[pouchdb] ${Config.POUCHDB_DATABASE_PREFIX}`
+        }
+    }
+    if (jsonDatabase == null) {
+        throw new Error('you must initialize the json database object!')
+    } else {
+        console.log('database initialized', jsonDatabase)
+    }
     const app = express()
     app.use(ExpressFileUpload())
 
@@ -381,7 +369,7 @@ export function startWebserver(args: IYarguments = null) {
         } catch (error) {
             return res.json({
                 status: 'error',
-                message: error.toString(),
+                message: error,
             })
         }
     })
@@ -396,7 +384,7 @@ export function startWebserver(args: IYarguments = null) {
         } catch (e) {
             return res.json({
                 status: 'error',
-                message: e.toString(),
+                message: e,
             })
         }
     })

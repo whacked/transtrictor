@@ -100,7 +100,7 @@ export class PouchDatabase extends JsonDatabase {
         })
     }
 
-    putSchemaTaggedPayload(schemaTaggedPayload: any) {
+    putSchemaTaggedPayload(schemaTaggedPayload: SchemaTaggedPayload) {
         let hash = getJcsSha256(schemaTaggedPayload)
         return this.schemaTaggedPayloads.putIfNotExists({
             _id: hash,
