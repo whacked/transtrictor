@@ -7,6 +7,10 @@ import crypto from 'crypto'
 import { canonicalize as toCanonicalizedJson } from 'json-canonicalize'
 
 
+export function isEmpty(maybeString: string) {
+    return maybeString == null || maybeString.trim().length == 0
+}
+
 export function readStdin(): Promise<string> {
     process.stdin.resume();
     process.stdin.setEncoding('utf-8');
@@ -19,6 +23,13 @@ export function readStdin(): Promise<string> {
             resolve(readBuffer)
         })
     })
+}
+
+export function bailIfNull<T>(maybeNull: T): T {
+    if (maybeNull == null) {
+        throw new Error('this value must not be null')
+    }
+    return maybeNull
 }
 
 export function bailIfNotExists(filePath: string) {
