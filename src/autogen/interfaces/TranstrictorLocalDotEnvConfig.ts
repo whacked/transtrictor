@@ -27,5 +27,6 @@ export interface TranstrictorLocalDotEnvConfigSchema {
    * use :memory: or remove this item to use in-memory database
    */
   POUCHDB_DATABASE_PREFIX?: string;
+  SQLITE_DATABASE_PATH?: string;
   [k: string]: unknown;
 }

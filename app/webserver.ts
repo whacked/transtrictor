@@ -26,17 +26,21 @@ import {
 import {
     createProxyMiddleware,
 } from 'http-proxy-middleware'
-import { getJcsSha256, monkeyPatchConsole, toSha256Checksum } from '../src/util';
+import { getJcsSha256, isEmpty, monkeyPatchConsole, toSha256Checksum } from '../src/util';
 import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../src/transformer'
 import { PouchDatabase } from '../src/jsonstore/xouchdb'
 import { JsonDatabase } from '../src/jsonstore'
 import { ArangoDatabase } from '../src/jsonstore/arangodb'
+import { SqliteDatabase } from '../src/jsonstore/sqlite'
 monkeyPatchConsole()
 
 
 let jsonDatabase: JsonDatabase | ArangoDatabase
 let databaseServerLocation: string
-if (Config.ARANGODB_SERVER_URL != null) {
+if (!isEmpty(Config.SQLITE_DATABASE_PATH)) {
+    databaseServerLocation = `[sqlite] ${Config.SQLITE_DATABASE_PATH}`
+    jsonDatabase = new SqliteDatabase()
+} else if (!isEmpty(Config.ARANGODB_SERVER_URL)) {
     jsonDatabase = new ArangoDatabase();
     (<ArangoDatabase>jsonDatabase).setupCollections()
     databaseServerLocation = `[arango] ${Config.ARANGODB_SERVER_URL}`
