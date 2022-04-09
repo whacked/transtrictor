@@ -1,4 +1,4 @@
-import { JsonDatabase } from "./jsonstore"
+import { JsonDatabase } from "."
 import PouchDB from 'pouchdb'
 import {
     Config,
@@ -6,17 +6,18 @@ import {
     JSON_SCHEMAS_TABLE_NAME,
     SCHEMA_TAGGED_PAYLOADS_TABLE_NAME,
     TRANSFORMERS_TABLE_NAME,
-} from './defs';
-import { POUCHDB_ADAPTER_CONFIG } from "./docdb";
-import { SchemaTaggedPayload } from './autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload'
+} from '../defs';
+import { POUCHDB_ADAPTER_CONFIG } from "../docdb";
+import { SchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload'
 import {
     makeTransformer,
     TransformerLanguage,
     unwrapTransformationContext,
     wrapTransformationContext,
-} from "./transformer";
-import { Transformer } from './autogen/interfaces/anthology/2022/03/30/Transformer'
-import { getJcsSha256, toSha256Checksum } from "./util";
+} from "../transformer";
+import { Transformer } from '../autogen/interfaces/anthology/2022/03/30/Transformer'
+import { getJcsSha256, toSha256Checksum } from "../util";
+import { SchemaTaggedPayloadJsonSchemaSchema } from "../autogen/interfaces/SchemaTaggedPayloadJsonSchema";
 
 
 // get all docs in the db:
@@ -37,9 +38,9 @@ function stripPouchDbMetadataFields_BANG(record: any): any {
 
 export class PouchDatabase extends JsonDatabase {
 
-    schemas: PouchDB.Database
-    transformers: PouchDB.Database
-    schemaTaggedPayloads: PouchDB.Database
+    schemas: PouchDB.Database<SchemaTaggedPayloadJsonSchemaSchema>
+    transformers: PouchDB.Database<Transformer>
+    schemaTaggedPayloads: PouchDB.Database<SchemaTaggedPayload>
 
     constructor() {
         super()

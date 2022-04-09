@@ -1,12 +1,13 @@
 import { Database } from 'arangojs'
 import { AqlQuery } from 'arangojs/aql'
 import { DocumentCollection } from 'arangojs/collection'
-import { SchemaTaggedPayload } from './autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayloadProtocol'
-import { Transformer } from './autogen/interfaces/anthology/2022/03/30/Transformer'
-import { Config, CURRENT_PROTOCOL_VERSION, JSON_SCHEMAS_TABLE_NAME, SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, TRANSFORMERS_TABLE_NAME } from './defs'
-import { JsonDatabase } from './jsonstore'
-import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from './transformer'
-import { getJcsSha256, toSha256Checksum } from './util'
+import { SchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayloadProtocol'
+import { Transformer } from '../autogen/interfaces/anthology/2022/03/30/Transformer'
+import { Config, CURRENT_PROTOCOL_VERSION, JSON_SCHEMAS_TABLE_NAME, SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, TRANSFORMERS_TABLE_NAME } from '../defs'
+import { JsonDatabase } from '.'
+import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../transformer'
+import { getJcsSha256, toSha256Checksum } from '../util'
+import { SchemaTaggedPayloadJsonSchemaSchema } from '../autogen/interfaces/SchemaTaggedPayloadJsonSchema'
 
 
 export function stripArangoDbMetadataFields_BANG(record: any): any {
@@ -25,10 +26,9 @@ export class ArangoDatabase extends JsonDatabase {
 
     database: Database
 
-    // FIXME schemas
-    schemas: DocumentCollection<any>
-    transformers: DocumentCollection<any>
-    schemaTaggedPayloads: DocumentCollection<any>
+    schemas: DocumentCollection<SchemaTaggedPayloadJsonSchemaSchema>
+    transformers: DocumentCollection<Transformer>
+    schemaTaggedPayloads: DocumentCollection<SchemaTaggedPayload>
 
     async _ensureCollection(collectionName: string): Promise<DocumentCollection<any>> {
         let collection = this.database.collection(collectionName)
