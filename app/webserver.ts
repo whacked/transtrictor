@@ -283,6 +283,21 @@ export async function startWebserver(args: IYarguments = null) {
             })
     })
 
+    app.get(`/${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}`, async (req: express.Request, res: express.Response) => {
+        let combinedParams = {
+            ...req.params,
+            ...req.query,
+        }
+        return jsonDatabase.findSchemaTaggedPayloads(combinedParams as Record<string, string>).then((rows) => {
+            return res.json(rows)
+        }).catch((error) => {
+            return res.json({
+                ...POUCHDB_ADAPTER_CONFIG,
+                ...error,
+            })
+        })
+    })
+
     app.get(`/${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}/:schemaNameMaybeWithVersion`, async (req: express.Request, res: express.Response) => {
         let [schemaName, schemaVersion] = req.params['schemaNameMaybeWithVersion'].split('@')
         // this used to look for schemas inside SchemaTaggedPayload... verify this!
