@@ -35,15 +35,25 @@ export class ValidatedConfig {
         if (schema?.properties == null) {
             return out
         }
+
+        let expandables: Record<string, string> = {}
         Object.keys(schema.properties).forEach((key) => {
             let itemConfig = schema.properties[key] as JSONSchema7
             if (itemConfig.type == "object") {
                 out[key] = ValidatedConfig.loadDefaults(itemConfig)
             } else if (itemConfig.default) {
-                out[key] = itemConfig.default
+                if (itemConfig.type == "string") {
+                    expandables[key] = itemConfig.default as string
+                } else {
+                    out[key] = itemConfig.default
+                }
             }
         })
-        return out
+
+        return {
+            ...out,
+            ...dotenvExpand({ parsed: expandables }).parsed,
+        }
     }
 
     static loadDotEnvFile<ConfigSchema>(
