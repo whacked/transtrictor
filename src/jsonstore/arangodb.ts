@@ -8,6 +8,7 @@ import { JsonDatabase } from '.'
 import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../transformer'
 import { getJcsSha256, toSha256Checksum } from '../util'
 import { SchemaTaggedPayloadJsonSchemaSchema } from '../autogen/interfaces/SchemaTaggedPayloadJsonSchema'
+import { TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload'
 
 
 export function stripArangoDbMetadataFields_BANG(record: any): any {
@@ -190,5 +191,9 @@ export class ArangoDatabase extends JsonDatabase {
 
     findLatestMatchingSchema(schemaName: string) {
         return this._findSchema(schemaName)
+    }
+
+    findSchemaTaggedPayloads<PayloadInterface>(filterExpression: Record<string, string>): Promise<TypedSchemaTaggedPayload<PayloadInterface>[]> {
+        throw new Error('implement me!')
     }
 }
