@@ -18,6 +18,22 @@ export enum ValidationStrictness {
 
 export class ValidatedConfig {
 
+    // use this envvar to control load-time verbosity
+    static readonly STRICTNESS_LEVEL_ENVIRONMENT_VARIABLE = 'VALIDATED_CONFIG_STRICTNESS_LEVEL'
+
+    static getEnvStrictnessLevel(): ValidationStrictness {
+        let envSpecifiedStrictnessLevel = (process.env[ValidatedConfig.STRICTNESS_LEVEL_ENVIRONMENT_VARIABLE] ?? '').toLowerCase()
+        switch (envSpecifiedStrictnessLevel) {
+            case 'full':
+                return ValidationStrictness.REQUIRE_FULL_CONFORMANCE
+            case 'warn':
+                return ValidationStrictness.WARN_ON_NONCONFORMANCE
+            case 'none':
+                return ValidationStrictness.UNSTRICT
+        }
+        return null
+    }
+
     static defaultConfigSourcePath = resolve(processCwd, ".env")  // FIXME for non-node interop?
     static configSchema: JSONSchema7 = null
 
@@ -35,21 +51,35 @@ export class ValidatedConfig {
         if (schema?.properties == null) {
             return out
         }
+
+        let expandables: Record<string, string> = {}
         Object.keys(schema.properties).forEach((key) => {
             let itemConfig = schema.properties[key] as JSONSchema7
             if (itemConfig.type == "object") {
                 out[key] = ValidatedConfig.loadDefaults(itemConfig)
             } else if (itemConfig.default) {
-                out[key] = itemConfig.default
+                if (itemConfig.type == "string") {
+                    expandables[key] = itemConfig.default as string
+                } else {
+                    out[key] = itemConfig.default
+                }
             }
         })
-        return out
+
+        return {
+            ...out,
+            ...dotenvExpand({ parsed: expandables }).parsed,
+        }
     }
 
     static loadDotEnvFile<ConfigSchema>(
         dotEnvFilePath: string = ValidatedConfig.defaultConfigSourcePath,
-        strictnessLevel: ValidationStrictness = ValidationStrictness.WARN_ON_NONCONFORMANCE,
+        strictnessLevel: ValidationStrictness = null,
     ) {
+        if (strictnessLevel == null) {
+            strictnessLevel = ValidatedConfig.getEnvStrictnessLevel() ?? ValidationStrictness.WARN_ON_NONCONFORMANCE
+        }
+
         return ValidatedConfig.load<ConfigSchema>(
             dotenvExpand(config({ path: dotEnvFilePath })).parsed, strictnessLevel,
         )

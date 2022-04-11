@@ -2,6 +2,7 @@
 
 let
   arangodb = import ./nix/arangodb.nix {};
+  psql = import ./nix/postgresql.nix {};
   nixShortcuts = (builtins.fetchurl {
     url = "https://raw.githubusercontent.com/whacked/setup/2d55546118ec3a57bdfda1861458ab8bce8c9c38/bash/nix_shortcuts.sh";
     sha256 = "11h3dipdrd2ym4ar59q3fligdmqhb5zzbbhnymi9vjdsgcs565iw";
@@ -17,15 +18,15 @@ in pkgs.mkShell {
 
     pkgs.couchdb3
     pkgs.crudini
-  ] ++ arangodb.buildInputs;
+  ] ++ arangodb.buildInputs ++ psql.buildInputs;
 
   nativeBuildInputs = [
     nixShortcuts
     ~/setup/bash/shell_shortcuts.sh
     ~/setup/bash/jsonnet_shortcuts.sh
-  ];
+  ] ++ psql.nativeBuildInputs;
 
-  shellHook = arangodb.shellHook + ''
+  shellHook = arangodb.shellHook + psql.shellHook + ''
     export PATH=$(yarn bin):$PATH
 
     run-cli-tests() {

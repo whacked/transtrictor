@@ -13,7 +13,6 @@
          "type": "string"
       },
       "ARANGODB_SERVER_URL": {
-         "default": "http://localhost:8529",
          "examples": [
             "http://localhost:8529"
          ],
@@ -38,6 +37,40 @@
          "description": "where the access logs for express-pouchdb should be saved",
          "examples": [
             "/tmp/express-pouchdb.log"
+         ],
+         "type": "string"
+      },
+      "PGDATABASE": {
+         "examples": [
+            "mydb"
+         ],
+         "type": "string"
+      },
+      "PGHOST": {
+         "default": "localhost",
+         "examples": [
+            "database.server.com",
+            "127.0.0.1"
+         ],
+         "type": "string"
+      },
+      "PGPASSWORD": {
+         "examples": [
+            "secretpassword"
+         ],
+         "type": "string"
+      },
+      "PGPORT": {
+         "default": 5432,
+         "examples": [
+            5432
+         ],
+         "type": "number"
+      },
+      "PGUSER": {
+         "default": "$USER",
+         "examples": [
+            "dbuser"
          ],
          "type": "string"
       },

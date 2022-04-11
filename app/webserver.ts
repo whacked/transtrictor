@@ -31,6 +31,7 @@ import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrap
 import { PouchDatabase } from '../src/jsonstore/xouchdb'
 import { JsonDatabase } from '../src/jsonstore'
 import { ArangoDatabase } from '../src/jsonstore/arangodb'
+import { PostgresDatabase } from '../src/jsonstore/postgres'
 import { SqliteDatabase } from '../src/jsonstore/sqlite'
 monkeyPatchConsole()
 
@@ -65,28 +66,47 @@ interface IYarguments {
 
 export async function startWebserver(args: IYarguments = null) {
 
-    let jsonDatabase: JsonDatabase | ArangoDatabase
+    let jsonDatabase: JsonDatabase
     let databaseServerLocation: string
-    if (!isEmpty(Config.SQLITE_DATABASE_PATH)) {
-        databaseServerLocation = `[sqlite] ${Config.SQLITE_DATABASE_PATH}`
-        jsonDatabase = await SqliteDatabase.getSingleton()
-    } else if (!isEmpty(Config.ARANGODB_SERVER_URL)) {
-        jsonDatabase = new ArangoDatabase();
-        (<ArangoDatabase>jsonDatabase).setupCollections()
-        databaseServerLocation = `[arango] ${Config.ARANGODB_SERVER_URL}`
-    } else {
-        jsonDatabase = new PouchDatabase()
-        if (Config.COUCHDB_SERVER_URL != null) {
-            databaseServerLocation = `[couchdb] ${Config.COUCHDB_SERVER_URL}`
-        } else {
-            databaseServerLocation = `[pouchdb] ${Config.POUCHDB_DATABASE_PREFIX}`
+
+    const databaseEngineLoadOrder: Array<[
+        string,
+        string,
+        () => Promise<any>,
+    ]> = [
+            [Config.PGDATABASE,
+            `[postgres] ${Config.PGHOST}/${Config.PGDATABASE}`,
+            async () => { return PostgresDatabase.getSingleton() }],
+            [Config.ARANGODB_SERVER_URL,
+            `[arango] ${Config.ARANGODB_SERVER_URL}`,
+            async () => { return Promise.resolve(new ArangoDatabase()) },
+            ],
+            [Config.COUCHDB_SERVER_URL,
+            `[couchdb] ${Config.COUCHDB_SERVER_URL}`,
+            async () => { return Promise.resolve(new PouchDatabase()) },
+            ],
+            [Config.POUCHDB_DATABASE_PREFIX,
+            `[pouchdb] ${Config.POUCHDB_DATABASE_PREFIX}`,
+            async () => { return Promise.resolve(new PouchDatabase()) },
+            ],
+            [Config.SQLITE_DATABASE_PATH,
+            `[sqlite] ${Config.SQLITE_DATABASE_PATH}`,
+            async () => { return SqliteDatabase.getSingleton() },
+            ],
+        ]
+
+    for (const [checkString, settingMessage, initializer] of databaseEngineLoadOrder) {
+        if (!isEmpty(checkString)) {
+            databaseServerLocation = settingMessage
+            jsonDatabase = await initializer()
+            break
         }
     }
+
     if (jsonDatabase == null) {
         throw new Error('you must initialize the json database object!')
-    } else {
-        console.log('database initialized', jsonDatabase)
     }
+
     const app = express()
     app.use(ExpressFileUpload())
 
@@ -99,7 +119,7 @@ export async function startWebserver(args: IYarguments = null) {
             pathRewrite: { '^/api': '' },
             auth: `${Config.COUCHDB_AUTH_USERNAME}:${Config.COUCHDB_AUTH_PASSWORD}`,
         }))
-    } else if (Config.ARANGODB_SERVER_URL == null) {
+    } else if (Config.POUCHDB_DATABASE_PREFIX != null) {
         const expressPouchDbHandler = ExpressPouchDb(PouchDbConfig, {
             logPath: Config.EXPRESS_POUCHDB_LOG_PATH,
         })
@@ -151,8 +171,9 @@ export async function startWebserver(args: IYarguments = null) {
         });
 
         // enable fauxton from /_utils
-        // NOTE this breaks everything else!
-        app.use(expressPouchDbHandler)
+        // FIXME NOTE this breaks everything else!
+        // this is only useful when browsing already-inserted data
+        // app.use(expressPouchDbHandler)
     }
 
     app.use(express.json({

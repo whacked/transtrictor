@@ -23,6 +23,11 @@ export interface TranstrictorLocalDotEnvConfigSchema {
    * where the access logs for express-pouchdb should be saved
    */
   EXPRESS_POUCHDB_LOG_PATH?: string;
+  PGDATABASE?: string;
+  PGHOST?: string;
+  PGPASSWORD?: string;
+  PGPORT?: number;
+  PGUSER?: string;
   /**
    * use :memory: or remove this item to use in-memory database
    */
