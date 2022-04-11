@@ -68,23 +68,42 @@ export async function startWebserver(args: IYarguments = null) {
 
     let jsonDatabase: JsonDatabase
     let databaseServerLocation: string
-    if (!isEmpty(Config.PGDATABASE)) {
-        databaseServerLocation = `[postgres] ${Config.PGHOST}/${Config.PGDATABASE}`
-        jsonDatabase = await PostgresDatabase.getSingleton()
-    } else if (!isEmpty(Config.SQLITE_DATABASE_PATH)) {
-        databaseServerLocation = `[sqlite] ${Config.SQLITE_DATABASE_PATH}`
-        jsonDatabase = await SqliteDatabase.getSingleton()
-    } else if (!isEmpty(Config.ARANGODB_SERVER_URL)) {
-        jsonDatabase = new ArangoDatabase();
-        (<ArangoDatabase>jsonDatabase).setupCollections()
-        databaseServerLocation = `[arango] ${Config.ARANGODB_SERVER_URL}`
-    } else if (isEmpty(Config.COUCHDB_SERVER_URL)) {
-        jsonDatabase = new PouchDatabase()
-        databaseServerLocation = `[couchdb] ${Config.COUCHDB_SERVER_URL}`
-    } else if (!isEmpty(Config.POUCHDB_DATABASE_PREFIX)) {
-        jsonDatabase = new PouchDatabase()
-        databaseServerLocation = `[pouchdb] ${Config.POUCHDB_DATABASE_PREFIX}`
-    } else {
+
+    const databaseEngineLoadOrder: Array<[
+        string,
+        string,
+        () => Promise<any>,
+    ]> = [
+            [Config.PGDATABASE,
+            `[postgres] ${Config.PGHOST}/${Config.PGDATABASE}`,
+            async () => { return PostgresDatabase.getSingleton() }],
+            [Config.ARANGODB_SERVER_URL,
+            `[arango] ${Config.ARANGODB_SERVER_URL}`,
+            async () => { return Promise.resolve(new ArangoDatabase()) },
+            ],
+            [Config.COUCHDB_SERVER_URL,
+            `[couchdb] ${Config.COUCHDB_SERVER_URL}`,
+            async () => { return Promise.resolve(new PouchDatabase()) },
+            ],
+            [Config.POUCHDB_DATABASE_PREFIX,
+            `[pouchdb] ${Config.POUCHDB_DATABASE_PREFIX}`,
+            async () => { return Promise.resolve(new PouchDatabase()) },
+            ],
+            [Config.SQLITE_DATABASE_PATH,
+            `[sqlite] ${Config.SQLITE_DATABASE_PATH}`,
+            async () => { return SqliteDatabase.getSingleton() },
+            ],
+        ]
+
+    for (const [checkString, settingMessage, initializer] of databaseEngineLoadOrder) {
+        if (!isEmpty(checkString)) {
+            databaseServerLocation = settingMessage
+            jsonDatabase = await initializer()
+            break
+        }
+    }
+
+    if (jsonDatabase == null) {
         throw new Error('you must initialize the json database object!')
     }
 

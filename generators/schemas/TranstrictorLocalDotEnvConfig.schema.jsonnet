@@ -27,7 +27,6 @@ local libPqConfig = {
   },
   PGDATABASE: {
     type: 'string',
-    default: '$USER',
     examples: [
       'mydb',
     ],
@@ -80,7 +79,6 @@ local arangoDbConfig = {
   ARANGODB_SERVER_URL: {
     type: 'string',
     pattern: urlPattern,
-    default: 'http://localhost:8529',
     examples: [
       'http://localhost:8529',
     ],

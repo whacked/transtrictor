@@ -13,7 +13,6 @@
          "type": "string"
       },
       "ARANGODB_SERVER_URL": {
-         "default": "http://localhost:8529",
          "examples": [
             "http://localhost:8529"
          ],
@@ -42,7 +41,6 @@
          "type": "string"
       },
       "PGDATABASE": {
-         "default": "$USER",
          "examples": [
             "mydb"
          ],
