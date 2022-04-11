@@ -108,7 +108,7 @@ export class SqliteDatabase extends JsonDatabase {
         let schemaName = bailIfNull(schema['title'], 'title must not be empty')
         let schemaVersion = bailIfNull(schema['version'], 'version must not be empty')
         return this.putWithPreparedSql(
-            `INSERT INTO "${JSON_SCHEMAS_TABLE_NAME}" VALUES ($title, $version, $json)`,
+            `INSERT OR IGNORE INTO "${JSON_SCHEMAS_TABLE_NAME}" VALUES ($title, $version, $json)`,
             {
                 $title: schemaName,
                 $version: schemaVersion,
@@ -132,7 +132,7 @@ export class SqliteDatabase extends JsonDatabase {
 
     putTransformer(transformerRecord: Transformer) {
         return this.putWithPreparedSql(
-            `INSERT INTO "${TRANSFORMERS_TABLE_NAME}" VALUES ($name, $json)`,
+            `INSERT OR IGNORE INTO "${TRANSFORMERS_TABLE_NAME}" VALUES ($name, $json)`,
             {
                 $name: transformerRecord.name,
                 $json: canonicalize(transformerRecord),
@@ -153,7 +153,7 @@ export class SqliteDatabase extends JsonDatabase {
         bailIfNull(schemaTaggedPayload.dataChecksum, 'payload must have precomputed checksum')
         let canonicalized = canonicalize(schemaTaggedPayload)
         return this.putWithPreparedSql(
-            `INSERT INTO "${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}" VALUES ($dataChecksum, $json)`,
+            `INSERT OR IGNORE INTO "${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}" VALUES ($dataChecksum, $json)`,
             {
                 $dataChecksum: schemaTaggedPayload.dataChecksum,
                 $json: canonicalized,
