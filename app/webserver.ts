@@ -417,6 +417,26 @@ export async function startWebserver(args: IYarguments = null) {
         }
     })
 
+    app.get('/help', (req, res) => {
+        let htmlLines: Array<string> = []
+        app._router.stack.forEach((layer: any) => {
+            if (layer.route != null) {
+                let liLines = [
+                    '<li>',
+                    '<div>',
+                    `<a href="${layer.route.path}"><code>${layer.route.path}</code></a>`,
+                    Object.keys(layer.route.methods != null ? layer.route.methods : {}).map(
+                        method => `<i>${method}</i>`
+                    ).join(', '),
+                    '</div>',
+                    '</li>',
+                ]
+                htmlLines.push(liLines.join('\n'))
+            }
+        })
+        return res.send(`<ol>${htmlLines.join('\n')}</ol>`)
+    })
+
     return app.listen(Config.API_SERVER_PORT, () => {
         console.log(`data server running on port ${Config.API_SERVER_PORT}; db: ${databaseServerLocation}`)
     })
