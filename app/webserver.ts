@@ -303,9 +303,16 @@ export async function startWebserver(args: IYarguments = null) {
         let [schemaName, schemaVersion] = req.params['schemaNameMaybeWithVersion'].split('@')
         let createdAt: number = req.query['createdAt'] == null ? Date.now() / 1e3 : parseFloat(req.query['createdAt'] as string)
 
-        let maybeSchema = await jsonDatabase.getSchema(
-            schemaName, schemaVersion
-        )
+        let maybeSchema: any
+        try {
+            maybeSchema = await jsonDatabase.getSchema(
+                schemaName, schemaVersion
+            )
+        } catch (error) {
+            console.warn(`failed to load schema ${schemaName}@${schemaVersion}`)
+            console.log(error)
+            return res.json(error)
+        }
         if (maybeSchema == null) {
             return res.json({
                 status: 'error',
