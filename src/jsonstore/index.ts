@@ -1,4 +1,5 @@
 import { SchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/02/26/SchemaTaggedPayload'
+import { TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload'
 import { Transformer } from '../autogen/interfaces/anthology/2022/03/30/Transformer'
 import { CURRENT_PROTOCOL_VERSION } from '../defs'
 import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../transformer'
@@ -22,6 +23,7 @@ export abstract class JsonDatabase {
     abstract getTransformer(transformerName: string)
     abstract putSchemaTaggedPayload(schemaTaggedPayload: any)
     abstract getSchemaTaggedPayload(dataChecksum: string)
+    abstract findSchemaTaggedPayloads<PayloadInterface>(filterExpression: Record<string, string>): Promise<TypedSchemaTaggedPayload<PayloadInterface>[]>
 
     async requireTransformer(transformerName: string) {
         let transformerRecord = await this.getTransformer(transformerName)

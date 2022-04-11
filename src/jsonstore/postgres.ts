@@ -1,7 +1,7 @@
 import { canonicalize } from "json-canonicalize";
 import { Pool } from 'pg';
 import { JsonDatabase } from ".";
-import { SchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload';
+import { SchemaTaggedPayload, TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload';
 import { Transformer } from '../autogen/interfaces/anthology/2022/03/30/Transformer';
 import { SchemaTaggedPayloadJsonSchemaSchema } from "../autogen/interfaces/SchemaTaggedPayloadJsonSchema";
 import {
@@ -122,5 +122,9 @@ export class PostgresDatabase extends JsonDatabase {
             `SELECT json FROM "${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}" WHERE dataChecksum = $1`,
             [dataChecksum],
         )
+    }
+
+    findSchemaTaggedPayloads<PayloadInterface>(filterExpression: Record<string, string>): Promise<TypedSchemaTaggedPayload<PayloadInterface>[]> {
+        throw new Error('implement me!')
     }
 }

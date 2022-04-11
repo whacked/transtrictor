@@ -1,7 +1,7 @@
 import { canonicalize } from "json-canonicalize";
 import sqlite3 from 'sqlite3';
 import { JsonDatabase } from ".";
-import { SchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload';
+import { SchemaTaggedPayload, TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload';
 import { Transformer } from '../autogen/interfaces/anthology/2022/03/30/Transformer';
 import { SchemaTaggedPayloadJsonSchemaSchema } from "../autogen/interfaces/SchemaTaggedPayloadJsonSchema";
 import {
@@ -168,5 +168,41 @@ export class SqliteDatabase extends JsonDatabase {
                 $dataChecksum: dataChecksum,
             }
         )
+    }
+
+    findSchemaTaggedPayloads<PayloadInterface>(filterExpression: Record<string, string>): Promise<TypedSchemaTaggedPayload<PayloadInterface>[]> {
+        // FIXME MOVEME
+        // examples:
+        // {
+        //   '$.data.machineOverview.form1.mac_address': 'aa:bb:cc:dd:11:33'
+        // }
+        // {
+        //   '$.schemaName': 'BlahBlahBlahSchema1',
+        //   '$.schemaVersion': 'FooBarVersion2',
+        // }
+        let whereMatchers: Array<string> = []
+        let queryValues: Record<string, string> = {}
+        for (const [fieldSelector, matchValue] of Object.entries(filterExpression)) {
+            let expressionNumber = whereMatchers.length
+            let matcherKeyPrepared = `$key${expressionNumber}`
+            let matcherValuePrepared = `$value${expressionNumber}`
+            whereMatchers.push(
+                `json_extract(root.json, ${matcherKeyPrepared}) = ${matcherValuePrepared}`
+            )
+            queryValues[matcherKeyPrepared] = fieldSelector
+            queryValues[matcherValuePrepared] = matchValue
+        }
+        let sql = `SELECT root.json FROM "${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}" AS root WHERE ${whereMatchers.join(' ')}`
+        let query: sqlite3.Statement = this.database.prepare(sql)
+        return new Promise((resolve, reject) => {
+            return query.all(queryValues, (error, rows) => {
+                if (error) {
+                    return reject(error)
+                }
+                return resolve(rows.map(row => {
+                    return JSON.parse(row.json) as TypedSchemaTaggedPayload<PayloadInterface>
+                }))
+            })
+        })
     }
 }
