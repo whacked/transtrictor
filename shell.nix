@@ -48,6 +48,7 @@ in pkgs.mkShell {
     alias start-back='ts-node parsers/multi.ts'
     alias start-dev-webserver='ts-node-dev --respawn app/webserver.ts'
     echo -e "\033[0;34m  generate-schema <some-data.json> to auto-generate a json schema \033[0m"
+    alias cli='ts-node -T scripts/cli.ts'
 
   '' + ''
     . .env
@@ -166,7 +167,7 @@ in pkgs.mkShell {
     }
   '' + ''
     # sqlite interaction
-    list-databases() {
+    list-databases() {  # pouchdb backend only for now
         DBS_DBS_PATH=$POUCHDB_DATABASE_PREFIX/pouch__all_dbs__
         if [ ! -e $DBS_DBS_PATH ]; then
             echo "did not find meta database at $DBS_DBS_PATH; you might need to set POUCHDB_DATABASE_PREFIX first"
@@ -278,6 +279,37 @@ in pkgs.mkShell {
     }
     web-start-back() {
       ts-node app/webserver.ts
+    }
+
+  '' + ''
+    # sqlite backend
+    _query-sqlite() {
+        if [ $# -ne 2 ]; then
+            echo "need <path-to-database> <query>"
+        fi
+        sqlite_database_path=$1
+        query=$2
+        if [ ! -e $sqlite_database_path ]; then
+            echo "need path to sqlite database"
+            return
+        fi
+        sqlite3 $sqlite_database_path "$query"
+    }
+
+    list-sqlite-schemas() {  # sqlite backend only for now
+        _query-sqlite $1 "SELECT json_extract(root.json, '$.title') FROM 'json-schemas' AS root"
+    }
+
+    list-sqlite-transformers() {  # sqlite backend only for now
+        _query-sqlite $1 "SELECT json FROM 'transformers'" | jq -r '.|[.name, (.supportedInputSchemas | join(",")) + " --> " + .outputSchema] | @tsv'
+    }
+
+    list-sqlite-documents-with-schema() {  # sqlite backend only for now
+        if [ $# -ne 2 ]; then
+            echo "need <path-to-database> <schema-name>"
+        fi
+        schema_name=$2
+        _query-sqlite $1 "SELECT json FROM 'schema-tagged-payloads' AS root WHERE json_extract(root.json, '$.schemaName') = '$schema_name'"
     }
   '' + ''
     # couchdb
