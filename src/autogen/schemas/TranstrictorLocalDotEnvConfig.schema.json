@@ -88,6 +88,16 @@
             "/tmp/transtrictor-data.sqlite"
          ],
          "type": "string"
+      },
+      "VALIDATED_CONFIG_STRICTNESS_LEVEL": {
+         "default": "warn",
+         "description": "use this envvar to control load-time verbosity",
+         "enum": [
+            "full",
+            "warn",
+            "none"
+         ],
+         "type": "string"
       }
    },
    "type": "object"
