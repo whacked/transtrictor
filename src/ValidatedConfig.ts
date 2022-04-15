@@ -4,6 +4,9 @@ import { resolve } from "path"
 import dotenvExpand from 'dotenv-expand'
 import Ajv from 'ajv'
 import { JSONSchema7 } from "json-schema"
+import { TranstrictorLocalDotEnvConfigSchema } from './autogen/interfaces/TranstrictorLocalDotEnvConfig'
+
+const nameof = <T>(name: keyof T) => name;
 
 
 const processEnv = typeof process == "undefined" ? {} : process.env
@@ -15,11 +18,10 @@ export enum ValidationStrictness {
     WARN_ON_NONCONFORMANCE,
     UNSTRICT,
 }
-
 export class ValidatedConfig {
 
     // use this envvar to control load-time verbosity
-    static readonly STRICTNESS_LEVEL_ENVIRONMENT_VARIABLE = 'VALIDATED_CONFIG_STRICTNESS_LEVEL'
+    static readonly STRICTNESS_LEVEL_ENVIRONMENT_VARIABLE = nameof<TranstrictorLocalDotEnvConfigSchema>("VALIDATED_CONFIG_STRICTNESS_LEVEL")
 
     static getEnvStrictnessLevel(): ValidationStrictness {
         let envSpecifiedStrictnessLevel = (process.env[ValidatedConfig.STRICTNESS_LEVEL_ENVIRONMENT_VARIABLE] ?? '').toLowerCase()
@@ -166,18 +168,25 @@ export class ValidatedConfig {
                 return Math.max(maxLength, curLength.length)
             }, 0)
 
+            let warningMessages: Array<string> = []
             mergedConfigKeys.forEach((key) => {
                 if (!incomingConfig[key]) {
                     let useDefault = mergedConfig[key] ? ` => using default: ${mergedConfig[key]}` : ''
-                    console.warn(`!!! WARNING !!!\t${key.padEnd(showKeyLength, ' ')} exists in schema but not in env  ${useDefault}`)
+                    warningMessages.push(`!!! WARNING !!!\t${key.padEnd(showKeyLength, ' ')} exists in schema but not in env  ${useDefault}`)
                 }
             })
 
             inputKeys.forEach((key) => {
                 if (!mergedConfig[key]) {
-                    console.warn(`!!! WARNING !!!\t${key.padEnd(showKeyLength, ' ')} exists in env   but not in schema`)
+                    warningMessages.push(`!!! WARNING !!!\t${key.padEnd(showKeyLength, ' ')} exists in env   but not in schema`)
                 }
             })
+
+            if (warningMessages.length > 0) {
+                console.warn(`*** WARNINGS FOUND; to change the warning level, set the ${ValidatedConfig.STRICTNESS_LEVEL_ENVIRONMENT_VARIABLE} environment variable ***`)
+                console.warn(warningMessages.join('\n'))
+            }
+
         }
 
         return mergedConfig

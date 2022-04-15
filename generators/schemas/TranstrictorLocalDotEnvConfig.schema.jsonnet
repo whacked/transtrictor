@@ -1,5 +1,14 @@
 local urlPattern = 'https?://.+?:\\d+';
 
+local transtrictorConfig = {
+  VALIDATED_CONFIG_STRICTNESS_LEVEL: {
+    type: 'string',
+    default: 'warn',
+    enum: ['full', 'warn', 'none'],
+    description: 'use this envvar to control load-time verbosity',
+  },
+};
+
 local libPqConfig = {
   // see https://www.postgresql.org/docs/9.1/libpq-envars.html
   // linked from https://node-postgres.com/features/connecting
@@ -104,11 +113,19 @@ local sqliteDbConfig = {
 {
   type: 'object',
   description: '.env config for transtrictor local utils (webserver, pouchdb)',
-  properties: {
-    API_SERVER_PORT: {
-      type: 'number',
-      default: 1235,
-      description: 'where the api server listens for requests',
-    },
-  } + pouchDbConfig + couchDbConfig + arangoDbConfig + libPqConfig + sqliteDbConfig,
+  properties: (
+    {
+      API_SERVER_PORT: {
+        type: 'number',
+        default: 1235,
+        description: 'where the api server listens for requests',
+      },
+    }
+    + transtrictorConfig
+    + pouchDbConfig
+    + couchDbConfig
+    + arangoDbConfig
+    + libPqConfig
+    + sqliteDbConfig
+  ),
 }

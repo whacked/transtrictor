@@ -33,5 +33,9 @@ export interface TranstrictorLocalDotEnvConfigSchema {
    */
   POUCHDB_DATABASE_PREFIX?: string;
   SQLITE_DATABASE_PATH?: string;
+  /**
+   * use this envvar to control load-time verbosity
+   */
+  VALIDATED_CONFIG_STRICTNESS_LEVEL?: "full" | "warn" | "none";
   [k: string]: unknown;
 }
