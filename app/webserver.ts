@@ -33,6 +33,7 @@ import { JsonDatabase } from '../src/jsonstore'
 import { ArangoDatabase } from '../src/jsonstore/arangodb'
 import { PostgresDatabase } from '../src/jsonstore/postgres'
 import { SqliteDatabase } from '../src/jsonstore/sqlite'
+import { RqliteDatabase } from '../src/jsonstore/rqlite'
 monkeyPatchConsole()
 
 
@@ -88,6 +89,10 @@ export async function startWebserver(args: IYarguments = null) {
             [Config.POUCHDB_DATABASE_PREFIX,
             `[pouchdb] ${Config.POUCHDB_DATABASE_PREFIX}`,
             async () => { return Promise.resolve(new PouchDatabase()) },
+            ],
+            [Config.RQLITE_SERVER_ADDRESS,
+            `[rqlite] ${Config.RQLITE_SERVER_ADDRESS}`,
+            async () => { return RqliteDatabase.getSingleton() },
             ],
             [Config.SQLITE_DATABASE_PATH,
             `[sqlite] ${Config.SQLITE_DATABASE_PATH}`,

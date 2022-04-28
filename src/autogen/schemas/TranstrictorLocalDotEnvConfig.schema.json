@@ -82,6 +82,12 @@
          ],
          "type": "string"
       },
+      "RQLITE_SERVER_ADDRESS": {
+         "examples": [
+            "http://localhost:4001"
+         ],
+         "type": "string"
+      },
       "SQLITE_DATABASE_PATH": {
          "examples": [
             ":memory:",
