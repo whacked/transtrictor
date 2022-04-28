@@ -61,14 +61,33 @@ export abstract class JsonDatabase {
         transformerName: string, dataChecksum: string, context: any
     ): Promise<SchemaTaggedPayload> {
         let transformerRecord = await this.requireTransformerWithOutputSchema(transformerName)
-        let payload = await this.requireSchemaTaggedPayload(dataChecksum)
+        let payload = await this.requireSchemaTaggedPayload(dataChecksum) as SchemaTaggedPayload
+        // extract some parts of the payload's data blob to send to transformation as context
+        type InheritedContext = Pick<SchemaTaggedPayload, 'device' | 'accessControlPolicy' | 'batch' | 'project'>
+        let inheritedContext: InheritedContext = {}
+        if (payload.device != null) {
+            inheritedContext.device = payload.device
+        }
+        if (payload.accessControlPolicy != null) {
+            inheritedContext.accessControlPolicy = payload.accessControlPolicy
+        }
+        if (payload.batch != null) {
+            inheritedContext.batch = payload.batch
+        }
+        if (payload.project != null) {
+            inheritedContext.project = payload.project
+        }
+
         let outputSchema = await this.requireSchema(transformerRecord.outputSchema)
 
         let outputSchemaName = outputSchema.title
         let outputSchemaVersion = outputSchema.version
 
         let transformer = makeTransformer(transformerRecord.language as TransformerLanguage, transformerRecord.sourceCode)
-        return transformer.transform(wrapTransformationContext(payload.data, context)).then((transformed) => {
+        return transformer.transform(wrapTransformationContext(payload.data, {
+            ...inheritedContext,
+            ...context,
+        })).then((transformed) => {
             return unwrapTransformationContext<SchemaTaggedPayload>(transformed)
         }).then((unwrapped) => {
             const transformedDataChecksum = toSha256Checksum(unwrapped.data)
