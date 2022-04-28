@@ -62,21 +62,10 @@ export abstract class JsonDatabase {
     ): Promise<SchemaTaggedPayload> {
         let transformerRecord = await this.requireTransformerWithOutputSchema(transformerName)
         let payload = await this.requireSchemaTaggedPayload(dataChecksum) as SchemaTaggedPayload
-        // extract some parts of the payload's data blob to send to transformation as context
-        type InheritedContext = Pick<SchemaTaggedPayload, 'device' | 'accessControlPolicy' | 'batch' | 'project'>
-        let inheritedContext: InheritedContext = {}
-        if (payload.device != null) {
-            inheritedContext.device = payload.device
-        }
-        if (payload.accessControlPolicy != null) {
-            inheritedContext.accessControlPolicy = payload.accessControlPolicy
-        }
-        if (payload.batch != null) {
-            inheritedContext.batch = payload.batch
-        }
-        if (payload.project != null) {
-            inheritedContext.project = payload.project
-        }
+        const {
+            data: payloadData,
+            ...inheritedContext
+        } = payload
 
         let outputSchema = await this.requireSchema(transformerRecord.outputSchema)
 
@@ -84,7 +73,7 @@ export abstract class JsonDatabase {
         let outputSchemaVersion = outputSchema.version
 
         let transformer = makeTransformer(transformerRecord.language as TransformerLanguage, transformerRecord.sourceCode)
-        return transformer.transform(wrapTransformationContext(payload.data, {
+        return transformer.transform(wrapTransformationContext(payloadData, {
             ...inheritedContext,
             ...context,
         })).then((transformed) => {
@@ -93,12 +82,12 @@ export abstract class JsonDatabase {
             const transformedDataChecksum = toSha256Checksum(unwrapped.data)
             // TAG WRAPPING HAPPENS HERE
             // FIXME: should the unwrapped be responsible for having the .data?
-            // current usage makes the tnrasformer responsible for protocolVersion, schemaName etc.
+            // current usage makes the transformer responsible for protocolVersion, schemaName etc.
             let schemaTaggedPayload: SchemaTaggedPayload = {
+                ...unwrapped,
                 protocolVersion: CURRENT_PROTOCOL_VERSION,
                 dataChecksum: transformedDataChecksum,  // TODO test that post-transform checksum != input checksum (unless fixed point!?)
                 createdAt: context['createdAt'] ?? Date.now() / 1e3,
-                data: unwrapped.data,
                 schemaName: outputSchemaName,
                 schemaVersion: outputSchemaVersion,
             }
