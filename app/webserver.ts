@@ -322,6 +322,7 @@ export async function startWebserver(args: IYarguments = null) {
     app.post(`/${SCHEMA_TAGGED_PAYLOADS_TABLE_NAME}/:schemaNameMaybeWithVersion`, async (req: express.Request, res: express.Response) => {
         let [schemaName, schemaVersion] = req.params['schemaNameMaybeWithVersion'].split('@')
         let createdAt: number = req.query['createdAt'] == null ? Date.now() / 1e3 : parseFloat(req.query['createdAt'] as string)
+        const extraAllowedPayloadFields = ['device',]  // ref interface
 
         let maybeSchema: any
         try {
@@ -367,6 +368,13 @@ export async function startWebserver(args: IYarguments = null) {
                 data: unvalidatedPayload,
                 schemaName: maybeSchema['title'],
                 schemaVersion: maybeSchema['version'],
+            }
+
+            for (const extraAllowedPayloadField of extraAllowedPayloadFields) {
+                let maybeValue = req.query[extraAllowedPayloadField]
+                if (maybeValue != null) {
+                    schemaTaggedPayload[extraAllowedPayloadField] = maybeValue
+                }
             }
 
             return jsonDatabase.putSchemaTaggedPayload(schemaTaggedPayload)
@@ -438,23 +446,33 @@ export async function startWebserver(args: IYarguments = null) {
     })
 
     app.get('/help', (req, res) => {
-        let htmlLines: Array<string> = []
-        app._router.stack.forEach((layer: any) => {
-            if (layer.route != null) {
-                let liLines = [
-                    '<li>',
-                    '<div>',
-                    `<a href="${layer.route.path}"><code>${layer.route.path}</code></a>`,
-                    Object.keys(layer.route.methods != null ? layer.route.methods : {}).map(
-                        method => `<i>${method}</i>`
-                    ).join(', '),
-                    '</div>',
-                    '</li>',
-                ]
-                htmlLines.push(liLines.join('\n'))
-            }
-        })
-        return res.send(`<ol>${htmlLines.join('\n')}</ol>`)
+        if (req.headers['content-type'] == 'application/json') {
+            return res.json(Object.fromEntries(app._router.stack.map((layer: any) => {
+                if (layer.route == null) {
+                    return
+                } else {
+                    return [layer.route.path, Object.keys(layer.route.methods)]
+                }
+            }).filter(x => x)))
+        } else {
+            let htmlLines: Array<string> = []
+            app._router.stack.forEach((layer: any) => {
+                if (layer.route != null) {
+                    let liLines = [
+                        '<li>',
+                        '<div>',
+                        `<a href="${layer.route.path}"><code>${layer.route.path}</code></a>`,
+                        Object.keys(layer.route.methods != null ? layer.route.methods : {}).map(
+                            method => `<i>${method}</i>`
+                        ).join(', '),
+                        '</div>',
+                        '</li>',
+                    ]
+                    htmlLines.push(liLines.join('\n'))
+                }
+            })
+            return res.send(`<ol>${htmlLines.join('\n')}</ol>`)
+        }
     })
 
     return app.listen(Config.API_SERVER_PORT, () => {
