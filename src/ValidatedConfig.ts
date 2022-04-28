@@ -24,7 +24,7 @@ export class ValidatedConfig {
     static readonly STRICTNESS_LEVEL_ENVIRONMENT_VARIABLE = nameof<TranstrictorLocalDotEnvConfigSchema>("VALIDATED_CONFIG_STRICTNESS_LEVEL")
 
     static getEnvStrictnessLevel(): ValidationStrictness {
-        let envSpecifiedStrictnessLevel = (process.env[ValidatedConfig.STRICTNESS_LEVEL_ENVIRONMENT_VARIABLE] ?? '').toLowerCase()
+        let envSpecifiedStrictnessLevel = (processEnv[ValidatedConfig.STRICTNESS_LEVEL_ENVIRONMENT_VARIABLE] ?? '').toLowerCase()
         switch (envSpecifiedStrictnessLevel) {
             case 'full':
                 return ValidationStrictness.REQUIRE_FULL_CONFORMANCE
