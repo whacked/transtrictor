@@ -74,25 +74,34 @@ in pkgs.mkShell {
     }
 
     add-data-to-server() {
-        case $1 in
-            --created-at)
-                shift
-                created_at_string="?createdAt=$1"
-                shift
-                ;;
+        context_params_string="?"
+        while true; do
+            case $1 in
+                --created-at)
+                    shift
+                    context_params_string="$context_params_string&createdAt=$1"
+                    shift
+                    ;;
 
-            *)
-                created_at_string=
-                ;;
-        esac
+                --device)
+                    shift
+                    device_string="?createdAt=$1"
+                    context_params_string="$context_params_string&device=$1"
+                    shift
+                    ;;
 
+                *)
+                    break
+                    ;;
+            esac
+        done
         if [ $# -lt 2 ]; then
-            echo 'requires:  [--created-at time] <schema-name> <path-to-data>'
+            echo 'requires:  [--created-at time] [--device device-name] <schema-name> <path-to-data>'
             return
         fi
         schema_name=$1
         path_to_data=$2
-        curl $CURL_BASIC_AUTH -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/$SCHEMA_TAGGED_PAYLOADS_TABLE_NAME/$schema_name$created_at_string" -d@$path_to_data
+        curl $CURL_BASIC_AUTH -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/$SCHEMA_TAGGED_PAYLOADS_TABLE_NAME/$schema_name$context_params_string" -d@$path_to_data
     }
 
     render-transformed-data() {
