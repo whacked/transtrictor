@@ -32,6 +32,7 @@ export interface TranstrictorLocalDotEnvConfigSchema {
    * use :memory: or remove this item to use in-memory database
    */
   POUCHDB_DATABASE_PREFIX?: string;
+  RQLITE_SERVER_ADDRESS?: string;
   SQLITE_DATABASE_PATH?: string;
   /**
    * use this envvar to control load-time verbosity

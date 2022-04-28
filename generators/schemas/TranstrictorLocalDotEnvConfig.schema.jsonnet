@@ -110,6 +110,15 @@ local sqliteDbConfig = {
   },
 };
 
+local rqliteDbConfig = {
+  RQLITE_SERVER_ADDRESS: {
+    type: 'string',
+    examples: [
+      'http://localhost:4001',
+    ],
+  },
+};
+
 {
   type: 'object',
   description: '.env config for transtrictor local utils (webserver, pouchdb)',
@@ -127,5 +136,6 @@ local sqliteDbConfig = {
     + arangoDbConfig
     + libPqConfig
     + sqliteDbConfig
+    + rqliteDbConfig
   ),
 }
