@@ -1,6 +1,6 @@
 import { TranstrictorLocalDotEnvConfigSchema } from './autogen/interfaces/TranstrictorLocalDotEnvConfig'
 import TranstrictorLocalDotEnvConfigJsonSchema from './autogen/schemas/TranstrictorLocalDotEnvConfig.schema.json'
-import { ValidatedConfig } from './ValidatedConfig'
+import { ValidatedConfig } from 'schematized-config/ValidatedConfig'
 
 // DEPRECATE???
 export const GENERIC_DATASETS_TABLE_NAME = 'datasets'
