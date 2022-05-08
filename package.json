@@ -40,6 +40,7 @@
     "react-dom": "^17.0.2",
     "react-json-view": "^1.21.3",
     "rqlite-js": "^2.5.4",
+    "schematized-config": "^0.0.4",
     "sqlite3": "4",
     "ts-jest": "^27.0.5",
     "ts-node": "^10.2.1",

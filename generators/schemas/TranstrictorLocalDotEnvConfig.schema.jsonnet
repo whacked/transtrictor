@@ -1,13 +1,6 @@
 local urlPattern = 'https?://.+?:\\d+';
 
-local transtrictorConfig = {
-  VALIDATED_CONFIG_STRICTNESS_LEVEL: {
-    type: 'string',
-    default: 'warn',
-    enum: ['full', 'warn', 'none'],
-    description: 'use this envvar to control load-time verbosity',
-  },
-};
+local transtrictorConfig = import '../../node_modules/schematized-config/autogen/schemas/ValidatorDotEnvConfig.schema.json';
 
 local libPqConfig = {
   // see https://www.postgresql.org/docs/9.1/libpq-envars.html
@@ -130,7 +123,7 @@ local rqliteDbConfig = {
         description: 'where the api server listens for requests',
       },
     }
-    + transtrictorConfig
+    + transtrictorConfig.properties
     + pouchDbConfig
     + couchDbConfig
     + arangoDbConfig
