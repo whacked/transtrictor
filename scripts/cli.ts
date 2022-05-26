@@ -102,9 +102,9 @@ export async function cliMain(args: IYarguments): Promise<any> {
         : () => { }
     tok('initializing...')
 
-    const schemaJsonnetSource = slurp(args.schema)
+    const schemaJsonnetSource = args.schema && slurp(args.schema)
+    const postTransformSchemaJsonnetSource = args.postTransformSchema && slurp(args.postTransformSchema)
 
-    const postTransformSchemaJsonnetSource = args.postTransformSchema == null ? null : slurp(args.postTransformSchema)
     const keyedContext: Record<string, any> = {}
     let numKeyContext = args.keyedContext == null ? 0 : args.keyedContext.length
     for (let i = 0; i < numKeyContext; i += 3) {
@@ -163,6 +163,11 @@ export async function cliMain(args: IYarguments): Promise<any> {
         }
 
     async function processJsonnetStringTransformation(targetDataJsonnetSource: string) {
+
+        if (schemaJsonnetSource == null) {
+            return runTransform(JSON.parse(targetDataJsonnetSource));
+        }
+
         tok('validating...')
         return validateJsonnetWithSchema(
             targetDataJsonnetSource,
@@ -177,7 +182,6 @@ export async function cliMain(args: IYarguments): Promise<any> {
                 tok('transforming...')
                 const resultData = await runTransform(result.data);
                 tok('transformed')
-                process.stdout.write(JSON.stringify(resultData, null, 2));
                 return resultData
             })
     }
@@ -187,7 +191,10 @@ export async function cliMain(args: IYarguments): Promise<any> {
     if (args.input != null) {
         return readStdinOrFile(args.input).then((jsonnetSource: string) => {
             tok('reading stdin...')
-            return processJsonnetStringTransformation(jsonnetSource)
+            return processJsonnetStringTransformation(jsonnetSource).then((resultData) => {
+                process.stdout.write(JSON.stringify(resultData, null, 2));
+                process.stdout.write('\n')
+            })
         })
     } else if (args.jsonLines != null) {
         let lineReader: readline.Interface
@@ -208,7 +215,9 @@ export async function cliMain(args: IYarguments): Promise<any> {
         }
         return new Promise((resolve, reject) => {
             lineReader.on('line', async (line) => {
-                processJsonnetStringTransformation(line)
+                processJsonnetStringTransformation(line).then((resultData) => {
+                    process.stdout.write(JSON.stringify(resultData) + '\n')
+                })
             })
         })
     }
@@ -224,7 +233,7 @@ if (require.main == module) {
         process.exit()
     }
 
-    if (args.schema == null) {
+    if (args.schema == null && args.transformer == null) {
         readStdinOrFile(args.input).then((inputJsonnetSource: string) => {
             return renderJsonnet(inputJsonnetSource)
         }).then((renderedData) => {
