@@ -180,14 +180,14 @@ export class SqliteDatabase extends JsonDatabase {
         //   '$.schemaName': 'BlahBlahBlahSchema1',
         //   '$.schemaVersion': 'FooBarVersion2',
         // }
-        let whereMatchers: Array<string> = []
+        let whereMatchers: Array<string> = ['TRUE']
         let queryValues: Record<string, string> = {}
         for (const [fieldSelector, matchValue] of Object.entries(filterExpression)) {
             let expressionNumber = whereMatchers.length
             let matcherKeyPrepared = `$key${expressionNumber}`
             let matcherValuePrepared = `$value${expressionNumber}`
             whereMatchers.push(
-                `json_extract(root.json, ${matcherKeyPrepared}) = ${matcherValuePrepared}`
+                `AND json_extract(root.json, ${matcherKeyPrepared}) = ${matcherValuePrepared}`
             )
             queryValues[matcherKeyPrepared] = fieldSelector
             queryValues[matcherValuePrepared] = matchValue
