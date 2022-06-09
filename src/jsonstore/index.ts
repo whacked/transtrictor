@@ -83,7 +83,7 @@ export abstract class JsonDatabase {
             // FIXME: should the unwrapped be responsible for having the .data?
             // current usage makes the transformer responsible for protocolVersion, schemaName etc.
             let schemaTaggedPayload: SchemaTaggedPayload = {
-                ...unwrapped,
+                data: unwrapped,
                 protocolVersion: CURRENT_PROTOCOL_VERSION,
                 dataChecksum: transformedDataChecksum,  // TODO test that post-transform checksum != input checksum (unless fixed point!?)
                 createdAt: context['createdAt'] ?? Date.now() / 1e3,
