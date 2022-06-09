@@ -1,4 +1,4 @@
-import { SchemaTaggedPayload } from '../src/autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload'
+import { SchemaTaggedPayload } from '../src/autogen/interfaces/anthology/2022/06/09/SchemaTaggedPayload'
 import { Transformer } from '../src/autogen/interfaces/anthology/2022/03/30/Transformer'
 import { Config, CURRENT_PROTOCOL_VERSION } from '../src/defs'
 import { SqliteDatabase } from '../src/jsonstore/sqlite'

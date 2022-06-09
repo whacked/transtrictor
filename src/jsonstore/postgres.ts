@@ -1,7 +1,7 @@
 import { canonicalize } from "json-canonicalize";
 import { Pool } from 'pg';
 import { JsonDatabase } from ".";
-import { SchemaTaggedPayload, TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload';
+import { SchemaTaggedPayload, TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/06/09/SchemaTaggedPayload';
 import { Transformer } from '../autogen/interfaces/anthology/2022/03/30/Transformer';
 import { SchemaTaggedPayloadJsonSchemaSchema } from "../autogen/interfaces/SchemaTaggedPayloadJsonSchema";
 import {
