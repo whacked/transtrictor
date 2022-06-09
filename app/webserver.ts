@@ -12,7 +12,7 @@ import yargs, { Argv } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { validateDataWithSchema, ValidationResult } from '../src/jsvg-lib';
 import SchemaTaggedPayloadJsonSchemaSchema from '../src/autogen/schemas/SchemaTaggedPayloadJsonSchema.schema.json'
-import { SchemaTaggedPayload } from '../src/autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload'
+import { SchemaTaggedPayload } from '../src/autogen/interfaces/anthology/2022/06/09/SchemaTaggedPayload'
 import { Transformer } from '../src/autogen/interfaces/anthology/2022/03/30/Transformer'
 import Ajv from 'ajv';
 import Draft04Schema from 'json-metaschema/draft-04-schema.json'

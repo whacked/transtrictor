@@ -1,14 +1,13 @@
 import { Database } from 'arangojs'
 import { AqlQuery } from 'arangojs/aql'
 import { DocumentCollection } from 'arangojs/collection'
-import { SchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayloadProtocol'
+import { SchemaTaggedPayload, TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/06/09/SchemaTaggedPayload'
 import { Transformer } from '../autogen/interfaces/anthology/2022/03/30/Transformer'
 import { Config, CURRENT_PROTOCOL_VERSION, JSON_SCHEMAS_TABLE_NAME, SCHEMA_TAGGED_PAYLOADS_TABLE_NAME, TRANSFORMERS_TABLE_NAME } from '../defs'
 import { JsonDatabase } from '.'
 import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../transformer'
 import { getJcsSha256, toSha256Checksum } from '../util'
 import { SchemaTaggedPayloadJsonSchemaSchema } from '../autogen/interfaces/SchemaTaggedPayloadJsonSchema'
-import { TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload'
 
 
 export function stripArangoDbMetadataFields_BANG(record: any): any {

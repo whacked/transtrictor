@@ -1,0 +1,115 @@
+{
+   "parents": [
+      "SchemaTaggedPayload@2022-03-25.1"
+   ],
+   "properties": {
+      "accessControlPolicy": {
+         "type": "string"
+      },
+      "applicationVersion": {
+         "type": [
+            "string",
+            "number"
+         ]
+      },
+      "batch": {
+         "type": [
+            "string"
+         ]
+      },
+      "createdAt": {
+         "type": [
+            "string",
+            "number"
+         ]
+      },
+      "creator": {
+         "type": [
+            "string"
+         ]
+      },
+      "data": {
+         "tsType": "any",
+         "type": [
+            "string",
+            "number",
+            "boolean",
+            "array",
+            "object"
+         ]
+      },
+      "dataChecksum": {
+         "description": "checksum value derived from a serialized representation of the .data attribute; this is logic dependent and is for verification by the same logic",
+         "examples": [
+            "sha256:d7946e0aa58456d44fdc86eb25877d9e8008a98c76c073df526a193da293eae1"
+         ],
+         "type": "string"
+      },
+      "device": {
+         "type": "string"
+      },
+      "fingerprint": {
+         "type": "string"
+      },
+      "id": {
+         "type": [
+            "string",
+            "number"
+         ]
+      },
+      "isPreprocessed": {
+         "type": "boolean"
+      },
+      "name": {
+         "type": "string"
+      },
+      "parentIds": {
+         "description": "optional list of identifiers/locators to the source data, if applicable, that generates the current payload",
+         "examples": [
+            [
+               "sha256:d7946e0aa58456d44fdc86eb25877d9e8008a98c76c073df526a193da293eae1"
+            ],
+            [
+               "xYzAbc"
+            ]
+         ],
+         "items": {
+            "type": "string"
+         },
+         "type": "array"
+      },
+      "project": {
+         "type": [
+            "string"
+         ]
+      },
+      "protocolVersion": {
+         "description": "version of the Tagged Payload protocol (this particular protocol is version 2022-06-09.1)",
+         "type": [
+            "string",
+            "number"
+         ]
+      },
+      "schemaName": {
+         "type": "string"
+      },
+      "schemaUrl": {
+         "type": "string"
+      },
+      "schemaVersion": {
+         "type": [
+            "string",
+            "number"
+         ]
+      }
+   },
+   "required": [
+      "data",
+      "protocolVersion",
+      "schemaName",
+      "schemaVersion"
+   ],
+   "title": "SchemaTaggedPayload",
+   "type": "object",
+   "version": "2022-06-09.1"
+}

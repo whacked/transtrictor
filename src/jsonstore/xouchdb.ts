@@ -8,7 +8,7 @@ import {
     TRANSFORMERS_TABLE_NAME,
 } from '../defs';
 import { POUCHDB_ADAPTER_CONFIG } from "../docdb";
-import { SchemaTaggedPayload, TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload'
+import { SchemaTaggedPayload, TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/06/09/SchemaTaggedPayload'
 import {
     makeTransformer,
     TransformerLanguage,

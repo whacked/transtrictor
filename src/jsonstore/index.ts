@@ -1,5 +1,4 @@
-import { SchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/02/26/SchemaTaggedPayload'
-import { TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/03/25/SchemaTaggedPayload'
+import { SchemaTaggedPayload, TypedSchemaTaggedPayload  } from '../autogen/interfaces/anthology/2022/06/09/SchemaTaggedPayload'
 import { Transformer } from '../autogen/interfaces/anthology/2022/03/30/Transformer'
 import { CURRENT_PROTOCOL_VERSION } from '../defs'
 import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../transformer'
