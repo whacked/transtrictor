@@ -20,12 +20,15 @@ function preprocessJsonSchema_BANG(jsonSchemaObject: object) {
      * commit history doens't adequately explain id -> $id but it most likely
      * involves internal reference/de-referencing.
      */
-    if (typeof jsonSchemaObject !== "object") {
+    if (typeof jsonSchemaObject !== "object" || jsonSchemaObject == null) {
         return
     }
     if (jsonSchemaObject["id"] != null
         && typeof jsonSchemaObject["id"] == 'string'
-        && jsonSchemaObject["id"].startsWith('/')
+        && (
+            jsonSchemaObject["id"].startsWith('/')
+            || jsonSchemaObject["id"].startsWith('http')
+        )
     ) {
         jsonSchemaObject["$id"] = jsonSchemaObject["id"]
         delete jsonSchemaObject["id"]
