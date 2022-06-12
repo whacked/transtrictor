@@ -73,7 +73,7 @@
     "/dist"
   ],
   "scripts": {
-    "prepublish": "tsc",
+    "prepublish": "tsc; make -B dist/autogen/schemas",
     "start:front": "parcel app/index.html",
     "start:back": "ts-node parsers/multi.ts",
     "start-all": "run-p start:back start:front"
