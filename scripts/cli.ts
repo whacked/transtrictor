@@ -152,7 +152,7 @@ export async function cliMain(args: IYarguments): Promise<any> {
                         console.error('POST TRANSFORM VALIDATION ERROR', validationResult.errors)
                         if (args.verbosity > 0) {
                             console.warn('INPUT DATA:')
-                            console.warn(resultData)
+                            console.warn('^' + JSON.stringify(resultData, null, 2) + '$')
                         }
                         return process.exit(2)
                     }
