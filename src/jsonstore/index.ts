@@ -1,4 +1,4 @@
-import { SchemaTaggedPayload, TypedSchemaTaggedPayload  } from '../autogen/interfaces/anthology/2022/06/09/SchemaTaggedPayload'
+import { SchemaTaggedPayload, TypedSchemaTaggedPayload } from '../autogen/interfaces/anthology/2022/06/09/SchemaTaggedPayload'
 import { Transformer } from '../autogen/interfaces/anthology/2022/03/30/Transformer'
 import { CURRENT_PROTOCOL_VERSION } from '../defs'
 import { makeTransformer, TransformerLanguage, unwrapTransformationContext, wrapTransformationContext } from '../transformer'
@@ -78,7 +78,7 @@ export abstract class JsonDatabase {
         })).then((transformed) => {
             return unwrapTransformationContext<SchemaTaggedPayload>(transformed)
         }).then((unwrapped) => {
-            const transformedDataChecksum = toSha256Checksum(unwrapped.data)
+            const transformedDataChecksum = toSha256Checksum(unwrapped)
             // TAG WRAPPING HAPPENS HERE
             // FIXME: should the unwrapped be responsible for having the .data?
             // current usage makes the transformer responsible for protocolVersion, schemaName etc.
