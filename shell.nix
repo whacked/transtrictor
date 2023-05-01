@@ -1,6 +1,8 @@
 { pkgs ? import <nixpkgs> {} }:
 
 let
+  arangodb = import ./nix/arangodb.nix {};
+  psql = import ./nix/postgresql.nix {};
   nixShortcuts = (builtins.fetchurl {
     url = "https://raw.githubusercontent.com/whacked/setup/2d55546118ec3a57bdfda1861458ab8bce8c9c38/bash/nix_shortcuts.sh";
     sha256 = "11h3dipdrd2ym4ar59q3fligdmqhb5zzbbhnymi9vjdsgcs565iw";
@@ -13,15 +15,18 @@ in pkgs.mkShell {
     pkgs.yarn
     pkgs.miller
     # pkgs.deno
-  ];
+
+    pkgs.couchdb3
+    pkgs.crudini
+  ] ++ arangodb.buildInputs ++ psql.buildInputs;
 
   nativeBuildInputs = [
     nixShortcuts
     ~/setup/bash/shell_shortcuts.sh
     ~/setup/bash/jsonnet_shortcuts.sh
-  ];
+  ] ++ psql.nativeBuildInputs;
 
-  shellHook = ''
+  shellHook = arangodb.shellHook + psql.shellHook + ''
     export PATH=$(yarn bin):$PATH
 
     run-cli-tests() {
@@ -43,9 +48,19 @@ in pkgs.mkShell {
     alias start-back='ts-node parsers/multi.ts'
     alias start-dev-webserver='ts-node-dev --respawn app/webserver.ts'
     echo -e "\033[0;34m  generate-schema <some-data.json> to auto-generate a json schema \033[0m"
+    alias cli='ts-node -T scripts/cli.ts'
 
   '' + ''
+    . .env
     SERVER_ENDPOINT=http://localhost:1235
+
+    # FIXME reconcile with defs.ts / autogen
+    JSON_SCHEMAS_TABLE_NAME=json-schemas  # JsonSchemas
+    TRANSFORMERS_TABLE_NAME=transformers  # Transformers
+    SCHEMA_TAGGED_PAYLOADS_TABLE_NAME=schema-tagged-payloads  # SchemaTaggedPayloads
+
+    CURL_BASIC_AUTH="-u $COUCHDB_AUTH_USERNAME:$COUCHDB_AUTH_PASSWORD"
+
     # useful endpoints
     # $SERVER_ENDPOINT/api/_all_dbs
     # $SERVER_ENDPOINT/api/<dbname>/_all_docs
@@ -55,29 +70,38 @@ in pkgs.mkShell {
             return
         fi
         schema_path=$1
-        jsonnet $schema_path | curl -s -H 'Content-Type: application/json' $SERVER_ENDPOINT/JsonSchemas -d @- | jq
+        jsonnet $schema_path | curl $CURL_BASIC_AUTH -s -H 'Content-Type: application/json' $SERVER_ENDPOINT/$JSON_SCHEMAS_TABLE_NAME -d @- | jq
     }
 
     add-data-to-server() {
-        case $1 in
-            --created-at)
-                shift
-                created_at_string="?createdAt=$1"
-                shift
-                ;;
+        context_params_string="?"
+        while true; do
+            case $1 in
+                --created-at)
+                    shift
+                    context_params_string="$context_params_string&createdAt=$1"
+                    shift
+                    ;;
 
-            *)
-                created_at_string=
-                ;;
-        esac
+                --device)
+                    shift
+                    device_string="?createdAt=$1"
+                    context_params_string="$context_params_string&device=$1"
+                    shift
+                    ;;
 
+                *)
+                    break
+                    ;;
+            esac
+        done
         if [ $# -lt 2 ]; then
-            echo 'requires:  [--created-at time] <schema-name> <path-to-data>'
+            echo 'requires:  [--created-at time] [--device device-name] <schema-name> <path-to-data>'
             return
         fi
         schema_name=$1
         path_to_data=$2
-        curl -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/SchemaTaggedPayloads/$schema_name$created_at_string" -d@$path_to_data
+        curl $CURL_BASIC_AUTH -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/$SCHEMA_TAGGED_PAYLOADS_TABLE_NAME/$schema_name$context_params_string" -d@$path_to_data
     }
 
     render-transformed-data() {
@@ -118,7 +142,7 @@ in pkgs.mkShell {
 
         schema_name=$1            # MyResultantSchemaName
         render-transformed-data "$2" "$3" "$4" "$5" "$6" |
-            curl -H 'Content-Type: application/json' $SERVER_ENDPOINT/SchemaTaggedPayloads/$schema_name -d @-
+            curl $CURL_BASIC_AUTH -H 'Content-Type: application/json' $SERVER_ENDPOINT/$SCHEMA_TAGGED_PAYLOADS_TABLE_NAME/$schema_name -d @-
     }
 
     add-transformer-to-server() {
@@ -148,11 +172,11 @@ in pkgs.mkShell {
             esac
             shift
         done
-        curl -vvv $inputsarg $outputarg -F "file=@$source_file" $SERVER_ENDPOINT/Transformers
+        curl $CURL_BASIC_AUTH -vvv $inputsarg $outputarg -F "file=@$source_file" $SERVER_ENDPOINT/$TRANSFORMERS_TABLE_NAME
     }
   '' + ''
     # sqlite interaction
-    list-databases() {
+    list-databases() {  # pouchdb backend only for now
         DBS_DBS_PATH=$POUCHDB_DATABASE_PREFIX/pouch__all_dbs__
         if [ ! -e $DBS_DBS_PATH ]; then
             echo "did not find meta database at $DBS_DBS_PATH; you might need to set POUCHDB_DATABASE_PREFIX first"
@@ -221,7 +245,7 @@ in pkgs.mkShell {
         fi
         hash=$1
         transformer=$2
-        curl -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/transformPayload/$hash$created_at_string" -d '{"transformerName": "'$transformer'"}'
+        curl $CURL_BASIC_AUTH -s -H 'Content-Type: application/json' "$SERVER_ENDPOINT/transformAndStorePayload/$hash$created_at_string" -d '{"transformerName": "'$transformer'"}'
     }
 
     apply-transform() {
@@ -255,9 +279,64 @@ in pkgs.mkShell {
             esac
             shift
         done
-        curl -vvv $inputsarg $outputarg -F "file=@$source_file" $SERVER_ENDPOINT/Transformers
+        curl $CURL_BASIC_AUTH -vvv $inputsarg $outputarg -F "file=@$source_file" $SERVER_ENDPOINT/$TRANSFORMERS_TABLE_NAME
     }
 
+    # web stuff
+    web-start-front() {
+      parcel app/index.html
+    }
+    web-start-back() {
+      ts-node app/webserver.ts
+    }
+
+  '' + ''
+    # sqlite backend
+    _query-sqlite() {
+        if [ $# -ne 2 ]; then
+            echo "need <path-to-database> <query>"
+        fi
+        sqlite_database_path=$1
+        query=$2
+        if [ ! -e $sqlite_database_path ]; then
+            echo "need path to sqlite database"
+            return
+        fi
+        sqlite3 $sqlite_database_path "$query"
+    }
+
+    list-sqlite-schemas() {  # sqlite backend only for now
+        _query-sqlite $1 "SELECT json_extract(root.json, '$.title') FROM 'json-schemas' AS root"
+    }
+
+    list-sqlite-transformers() {  # sqlite backend only for now
+        _query-sqlite $1 "SELECT json FROM 'transformers'" | jq -r '.|[.name, (.supportedInputSchemas | join(",")) + " --> " + .outputSchema] | @tsv'
+    }
+
+    list-sqlite-documents-with-schema() {  # sqlite backend only for now
+        if [ $# -ne 2 ]; then
+            echo "need <path-to-database> <schema-name>"
+        fi
+        schema_name=$2
+        _query-sqlite $1 "SELECT json FROM 'schema-tagged-payloads' AS root WHERE json_extract(root.json, '$.schemaName') = '$schema_name'"
+    }
+  '' + ''
+    # couchdb
+    setup-couchdb-sample-init() {
+        COUCHDB_BASE_DIR=''${1-$PWD/couchdb}
+        if [ ! -e $COUCHDB_BASE_DIR ]; then
+            echo "INFO: creating couchdb working directory: $COUCHDB_BASE_DIR"
+            mkdir -p $COUCHDB_BASE_DIR
+        fi
+        
+        crudini --set local.ini couchdb single_node true
+        crudini --set local.ini couchdb database_dir $COUCHDB_BASE_DIR/data
+        crudini --set local.ini couchdb view_index_dir $COUCHDB_BASE_DIR/index
+        crudini --set local.ini admins $COUCHDB_AUTH_USERNAME $COUCHDB_AUTH_PASSWORD
+    }
+
+    alias start-couchdb='couchdb -couch_ini $PWD/local.ini'
+  '' + ''
     echo-shortcuts ${__curPos.file}
   '';
 }

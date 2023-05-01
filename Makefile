@@ -23,9 +23,15 @@ $(call print_var,TS_INTERFACES_FILES)
 # autogen schemas and interfaces
 autogens: json-schemas ts-interfaces schema-tagged-payload-protocol-interface src/autogen/databaseJoinSpec.json
 
-schema-tagged-payload-protocol-interface: $(TS_INTERFACES_DIRECTORY)/anthology/2022/03/25/SchemaTaggedPayload.ts
+schema-tagged-payload-protocol-interface: $(TS_INTERFACES_DIRECTORY)/anthology/2022/06/09/SchemaTaggedPayload.ts
 
-$(TS_INTERFACES_DIRECTORY)/anthology/2022/03/25/SchemaTaggedPayload.ts: $(JSON_SCHEMAS_DIRECTORY)/anthology/2022/03/25/SchemaTaggedPayloadProtocol.schema.json
+# <legacy>
+$(TS_INTERFACES_DIRECTORY)/anthology/2022/02/26/SchemaTaggedPayload.ts: $(JSON_SCHEMAS_DIRECTORY)/anthology/2022/02/26/SchemaTaggedPayload.schema.json
+	json2ts $< | tee $@
+	echo -e 'export interface TypedSchemaTaggedPayload<T> extends SchemaTaggedPayload { data: T }' | tee -a $@
+# </legacy>
+
+$(TS_INTERFACES_DIRECTORY)/anthology/2022/06/09/SchemaTaggedPayload.ts: $(JSON_SCHEMAS_DIRECTORY)/anthology/2022/06/09/SchemaTaggedPayloadProtocol.schema.json
 	json2ts $< | tee $@
 	echo -e 'export interface TypedSchemaTaggedPayload<T> extends SchemaTaggedPayload { data: T }' | tee -a $@
 
@@ -41,7 +47,6 @@ $(TS_INTERFACES_DIRECTORY)/%.ts: $(JSON_SCHEMAS_DIRECTORY)/%.schema.json
 	mkdir -p $(dir $@)
 	json2ts $< | tee $@
 
-# legacy
-$(TS_INTERFACES_DIRECTORY)/anthology/2022/02/26/SchemaTaggedPayload.ts: $(JSON_SCHEMAS_DIRECTORY)/anthology/2022/02/26/SchemaTaggedPayload.schema.json
-	json2ts $< | tee $@
-	echo -e 'export interface TypedSchemaTaggedPayload<T> extends SchemaTaggedPayload { data: T }' | tee -a $@
+
+dist/autogen/schemas: src/autogen/schemas
+	rsync -av --include="*.json" $</ $@/

@@ -29,7 +29,7 @@ describe('utility', () => {
             },
         },
     }
-    let validated = verifyDataMatchesSchema<MyData>(myUntypedInput, mySchema)
+    let validated = verifyDataMatchesSchema<MyData>(myUntypedInput, mySchema as any /* JSONSchema7 string type incompat fix */)
     expect(myUntypedInput).toEqual(validated)
 })
 

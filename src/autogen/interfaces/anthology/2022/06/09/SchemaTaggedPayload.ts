@@ -21,9 +21,13 @@ export interface SchemaTaggedPayload {
   id?: string | number;
   isPreprocessed?: boolean;
   name?: string;
+  /**
+   * optional list of identifiers/locators to the source data, if applicable, that generates the current payload
+   */
+  parentIds?: string[];
   project?: string;
   /**
-   * version of the Tagged Payload protocol (this particular protocol is version 2022-03-25.1)
+   * version of the Tagged Payload protocol (this particular protocol is version 2022-06-09.1)
    */
   protocolVersion: string | number;
   schemaName: string;
@@ -31,3 +35,4 @@ export interface SchemaTaggedPayload {
   schemaVersion: string | number;
   [k: string]: unknown;
 }
+export interface TypedSchemaTaggedPayload<T> extends SchemaTaggedPayload { data: T }

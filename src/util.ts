@@ -1,7 +1,36 @@
 import fs from 'fs'
 import path from 'path'
 import chalk from 'chalk'
+import memoizerific from 'memoizerific'
+import { sha256HexString } from './defs'
+import crypto from 'crypto'
+import { canonicalize as toCanonicalizedJson } from 'json-canonicalize'
 
+
+export function isEmpty(maybeString: string) {
+    return maybeString == null || maybeString.trim().length == 0
+}
+
+export function readStdin(): Promise<string> {
+    process.stdin.resume();
+    process.stdin.setEncoding('utf-8');
+    let readBuffer: string = ''
+    return new Promise((resolve, reject) => {
+        process.stdin.on('data', inputData => {
+            readBuffer += inputData
+        })
+        process.stdin.on('end', _ => {
+            resolve(readBuffer)
+        })
+    })
+}
+
+export function bailIfNull<T>(maybeNull: T, message: string = null): T {
+    if (maybeNull == null) {
+        throw new Error(message ?? 'this value must not be null')
+    }
+    return maybeNull
+}
 
 export function bailIfNotExists(filePath: string) {
     if (!fs.existsSync(filePath)) {
@@ -65,4 +94,27 @@ export function monkeyPatchConsole() {
         };
     });
     isPatched = true;
+}
+
+export const getSha256 = memoizerific(1000)((content: string): sha256HexString => {
+    return crypto.createHash('sha256').update(content).digest('hex')
+})
+
+export function getJcsSha256(data: any): string {
+    return getSha256(toCanonicalizedJson(data))
+}
+
+export function prefixWithSha256(s: string) {
+    return `sha256:${s}`
+}
+
+export function toSha256Checksum(data: any): string {
+    return prefixWithSha256(getJcsSha256(data))
+}
+
+export function getSha256Part(dataChecksum: string): string {
+    if (!dataChecksum.startsWith('sha256:')) {
+        throw new Error('sha256 checksum must start with sha256:')
+    }
+    return dataChecksum.substring(7)
 }
