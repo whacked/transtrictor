@@ -2,11 +2,13 @@
 pkgs.mkShell {
   buildInputs = [
     pkgs.arangodb
-    pkgs.crudini
+    pkgs.initool
   ];  # join lists with ++
 
   nativeBuildInputs = [
-    ~/setup/bash/nix_shortcuts.sh
+    # TODO: this doesn't work with flake, but we
+    # removed shell.nix. so this needs to be cleaned
+    # ~/setup/bash/nix_shortcuts.sh
   ];
 
   shellHook = ''
@@ -34,14 +36,17 @@ pkgs.mkShell {
         # [log]
         # level = info
 
+        touch $_ARANGO_CONFIG_FILE
         # these options are the minimum requirement to get arangod to start
-        crudini --set $_ARANGO_CONFIG_FILE database directory $ICU_DATA
-        crudini --set $_ARANGO_CONFIG_FILE javascript app-path ./app
-        crudini --set $_ARANGO_CONFIG_FILE javascript startup-directory ${pkgs.arangodb}/share/arangodb3/js
-        crudini --set $_ARANGO_CONFIG_FILE log file $ICU_DATA/arangod.log
-        crudini --set $_ARANGO_CONFIG_FILE server endpoint tcp://127.0.0.1:8529
-        # this one looks like good practice
-        crudini --set $_ARANGO_CONFIG_FILE server authentication true
+        cat $_ARANGO_CONFIG_FILE |
+            initool s - database directory $ICU_DATA |
+            initool s - javascript app-path ./app |
+            initool s - javascript startup-directory ${pkgs.arangodb}/share/arangodb3/js |
+            initool s - log file $ICU_DATA/arangod.log |
+            initool s - server endpoint tcp://127.0.0.1:8529 |
+            # this one looks like good practice
+            initool s - server authentication true |
+            tee $_ARANGO_CONFIG_FILE
 
         if [ -e .env ]; then
             . .env
