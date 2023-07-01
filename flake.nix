@@ -29,7 +29,8 @@
           pkgs.gnumake
           pkgs.go
           pkgs.jsonnet
-          pkgs.yarn
+          pkgs.nodejs
+          pkgs.nodePackages.pnpm
           pkgs.miller
           # pkgs.deno
 
@@ -337,7 +338,7 @@
 
           alias start-couchdb='couchdb -couch_ini $PWD/local.ini'
         '' + ''
-          activate-yarn-env
+          activate-pnpm-env
           run-cli-tests() {
             # TODO: consolidate test runners in addition to the "jest" launch command
             _input=src/testdata/example-json-input-good.jsonnet

@@ -537,7 +537,7 @@ export async function runDataImportProcessForInputSource(
             )
             if (!validatedResult.isValid) {
                 console.warn(validatedResult.errors)
-                throw new Error(`vailed to validate input data: ${content}`)
+                throw new Error(`failed to validate input data: ${content}`)
             }
             let canonicalizedJson = canonicalize(jsonableDataObject)
             return ensureHashableObjectInDatabase(
